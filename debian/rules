@@ -3,13 +3,54 @@
 # Force UTF8 to workaround build error
 export LC_ALL=C.UTF-8
 
+# ── App-name customisation ────────────────────────────────────────────────────
+# Override DEB_APP_NAME on the command line to produce a co-installable fork:
+#
+#   DEB_APP_NAME=nemo-plus dpkg-buildpackage -us -uc
+#
+# Defaults to "nemo" for standard mainline builds.
+DEB_APP_NAME ?= nemo
+
+# Derive the human-readable title from the app name:
+#   "nemo"      → "Nemo"
+#   "nemo-plus" → "Nemo Plus"
+# Pure make string manipulation: replace hyphens with spaces, then
+# title-case each word via a small shell expression evaluated once.
+DEB_APP_TITLE := $(shell echo "$(DEB_APP_NAME)" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
+
+# ── Debian control/install file generation ───────────────────────────────────
+# Preprocess the .in templates before dpkg-buildpackage reads them.
+# We generate:  debian/control
+#               debian/$(DEB_APP_NAME).install
+#               debian/$(DEB_APP_NAME)-data.install
+#
+# The sed substitution is intentionally simple: replace @APP_NAME@ tokens.
+# This target runs before any dh step via the override below.
+
+debian/control: debian/control.in
+	sed 's/@APP_NAME@/$(DEB_APP_NAME)/g' $< > $@
+
+debian/$(DEB_APP_NAME).install: debian/nemo.install.in
+	sed 's/@APP_NAME@/$(DEB_APP_NAME)/g' $< > $@
+
+debian/$(DEB_APP_NAME)-data.install: debian/nemo-data.install.in
+	sed 's/@APP_NAME@/$(DEB_APP_NAME)/g' $< > $@
+
+# Make the dh steps depend on the generated files
+.PHONY: generated-debian-files
+generated-debian-files: debian/control \
+                         debian/$(DEB_APP_NAME).install \
+                         debian/$(DEB_APP_NAME)-data.install
+
+# ── Meson configuration ───────────────────────────────────────────────────────
 CONFIGURE_EXTRA_FLAGS = \
-	--libexecdir=/usr/lib/$(DEB_HOST_MULTIARCH)/nemo \
+	--libexecdir=/usr/lib/$(DEB_HOST_MULTIARCH)/$(DEB_APP_NAME) \
 	--buildtype=debugoptimized \
 	-D deprecated_warnings=false \
 	-D gtk_doc=true \
 	-D gtk_layer_shell=true \
-	-D selinux=false
+	-D selinux=false \
+	-D app_name=$(DEB_APP_NAME)
 
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs -Wl,-O1 -Wl,--as-needed
 export DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
@@ -18,7 +59,7 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL = 2
 %:
 	dh $@ --with gir
 
-override_dh_auto_configure:
+override_dh_auto_configure: generated-debian-files
 	dh_auto_configure -- $(CONFIGURE_EXTRA_FLAGS)
 
 override_dh_auto_test:
@@ -26,10 +67,10 @@ override_dh_auto_test:
 	:
 
 override_dh_strip:
-	dh_strip --dbg-package=nemo-dbg
+	dh_strip --dbg-package=$(DEB_APP_NAME)-dbg
 
 override_dh_python3:
-	dh_python3 -p nemo-data /usr/share/nemo
+	dh_python3 -p $(DEB_APP_NAME)-data /usr/share/$(DEB_APP_NAME)
 
 # workaround for fix lmde4 build
 override_dh_dwz:

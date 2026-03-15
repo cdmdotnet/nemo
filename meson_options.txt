@@ -1,5 +1,7 @@
 option('deprecated_warnings', type : 'boolean', value : false,
        description: 'Show compiler warnings about deprecated features')
+option('app_name', type : 'string', value : 'nemo',
+       description: 'Application name used for the binary, desktop file, data directory, and About dialog. Use "nemo" for mainline builds or e.g. "nemo-plus" for a co-installable fork. Must be a valid binary/directory name (lowercase, hyphens allowed).')
 option('exif', type : 'boolean', value : true,
        description: 'EXIF parsing support (requires libexif)')
 option('xmp', type : 'boolean', value : true,

@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Nemo
-Comment=Start Nemo desktop at log in
-Exec=nemo-desktop
+Name=@APP_TITLE@
+Comment=Start @APP_TITLE@ desktop at log in
+Exec=@APP_NAME@-desktop
 OnlyShowIn=X-Cinnamon;
 AutostartCondition=GSettings org.nemo.desktop show-desktop-icons
 X-GNOME-AutoRestart=true

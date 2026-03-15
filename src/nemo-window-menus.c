@@ -330,7 +330,7 @@ action_about_nemo_callback (GtkAction *action,
 	date = g_date_time_new_now_local ();
 
 	gtk_show_about_dialog (GTK_WINDOW (user_data),
-			       "program-name", _("Nemo"),
+			       "program-name", _(APP_TITLE),
 			       "version", VERSION,
 			       "comments", _("Nemo lets you organize "
 					     "files and folders, both on "

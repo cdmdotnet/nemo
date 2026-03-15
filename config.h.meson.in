@@ -40,6 +40,16 @@
 #mesondefine LOCALEDIR
 #mesondefine LOCALE_DIR
 
+// App-name customisation (set via -Dapp_name=).
+// APP_NAME  — binary/package name,  e.g. "nemo" or "nemo-plus"
+// APP_TITLE — human-readable title, e.g. "Nemo" or "Nemo Plus"
+// APP_DBUS_ID         — GApplication/D-Bus ID,         e.g. "org.Nemo" or "org.NemoPlus"
+// APP_DESKTOP_DBUS_ID — desktop GApplication/D-Bus ID, e.g. "org.NemoDesktop"
+#mesondefine APP_NAME
+#mesondefine APP_TITLE
+#mesondefine APP_DBUS_ID
+#mesondefine APP_DESKTOP_DBUS_ID
+
 // Define to 1 if you have the <malloc.h> header file.
 #mesondefine HAVE_MALLOC_H
 

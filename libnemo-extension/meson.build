@@ -42,18 +42,25 @@ nemo_extension_incdir = include_directories('.')
 
 nemo_extension_deps = [ glib, gtk ]
 
+# The shared library, headers, GIR typelib and pkgconfig file are owned by the
+# base 'nemo' package (via gir1.2-nemo-3.0 / libnemo-extension-dev /
+# libnemo-extension1).  A differently-named build (e.g. 'nemo-plus') links
+# against the already-installed library but does not reinstall these files,
+# which would conflict with the packages that own them.
 nemo_extension_lib = shared_library('nemo-extension',
   nemo_extension_sources + nemo_i18n_header,
   dependencies: nemo_extension_deps,
   include_directories: [ rootInclude, ],
-  install: true,
+  install: app_name == 'nemo',
   version: '1.4.0',
   link_args: [ '-Wl,-no-undefined' ],
 )
 
-install_headers(nemo_extension_headers,
-  subdir: join_paths('nemo', 'libnemo-extension')
-)
+if app_name == 'nemo'
+  install_headers(nemo_extension_headers,
+    subdir: join_paths('nemo', 'libnemo-extension')
+  )
+endif
 
 nemo_extension = declare_dependency(
   include_directories: include_directories('.'),
@@ -65,24 +72,26 @@ typelibdir = go_intr.get_variable(pkgconfig: 'typelibdir',
   pkgconfig_define: ['libdir', join_paths(get_option('prefix'), get_option('libdir'))]
 )
 
-gnome.generate_gir(nemo_extension_lib,
-  sources: nemo_extension_sources + nemo_extension_headers,
-  nsversion: '3.0',
-  namespace: 'Nemo',
-  export_packages: 'libnemo-extension',
-  includes: [ 'Gtk-3.0', 'Gio-2.0', 'GLib-2.0', ],
-  include_directories: [ rootInclude, ],
-  install_dir_typelib: typelibdir,
-  install: true,
-)
+if app_name == 'nemo'
+  gnome.generate_gir(nemo_extension_lib,
+    sources: nemo_extension_sources + nemo_extension_headers,
+    nsversion: '3.0',
+    namespace: 'Nemo',
+    export_packages: 'libnemo-extension',
+    includes: [ 'Gtk-3.0', 'Gio-2.0', 'GLib-2.0', ],
+    include_directories: [ rootInclude, ],
+    install_dir_typelib: typelibdir,
+    install: true,
+  )
 
-pkgconfig.generate(filebase: 'libnemo-extension',
-  name: 'libnemo-extension',
-  description: 'A library to create Nemo view extensions',
-  version: meson.project_version(),
-  requires: [ 'gio-2.0', 'glib-2.0', 'gtk+-3.0' ],
-  libraries: nemo_extension_lib,
-  subdirs: 'nemo',
-  variables: 'extensiondir=${libdir}/@0@/@1@'.format('nemo', 'extensions-3.0'),
-)
+  pkgconfig.generate(filebase: 'libnemo-extension',
+    name: 'libnemo-extension',
+    description: 'A library to create Nemo view extensions',
+    version: meson.project_version(),
+    requires: [ 'gio-2.0', 'glib-2.0', 'gtk+-3.0' ],
+    libraries: nemo_extension_lib,
+    subdirs: 'nemo',
+    variables: 'extensiondir=${libdir}/@0@/@1@'.format('nemo', 'extensions-3.0'),
+  )
+endif
 

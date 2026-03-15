@@ -2142,7 +2142,7 @@ nemo_window_init (NemoWindow *window)
 	g_object_unref (window_group);
 
 	/* Set initial window title */
-	gtk_window_set_title (GTK_WINDOW (window), _("Nemo"));
+	gtk_window_set_title (GTK_WINDOW (window), _(APP_TITLE));
 
     g_signal_connect_swapped (nemo_preferences,
 				  "changed::" NEMO_PREFERENCES_SHOW_IMAGE_FILE_THUMBNAILS,

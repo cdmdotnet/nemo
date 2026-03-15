@@ -115,6 +115,15 @@ nemo_private = declare_dependency(
   dependencies: nemo_private_deps,
 )
 
+# The GSettings schema must be installed by all builds — nemo-plus contains new
+# keys (dual-pane-vertical-split etc.) that are not present in the stock nemo
+# schema shipped by the distro.  Without this install, nemo-plus crashes at
+# startup with "schema does not contain a key named ...".
+#
+# The schema file is also installed by the base nemo package (nemo-data).
+# The nemo-plus .deb uses "Replaces: nemo-data" so dpkg permits the overwrite.
+# Our schema is a strict superset of the upstream one, so it works correctly
+# regardless of which package installed it last.
 install_data('org.nemo.gschema.xml',
     install_dir: join_paths(get_option('datadir'), 'glib-2.0', 'schemas')
 )

@@ -459,7 +459,7 @@ NemoApplication *
 nemo_desktop_application_get_singleton (void)
 {
     return nemo_application_initialize_singleton (NEMO_TYPE_DESKTOP_APPLICATION,
-                                                  "application-id", "org.NemoDesktop",
+                                                  "application-id", APP_DESKTOP_DBUS_ID,
                                                   "flags", G_APPLICATION_HANDLES_OPEN,
                                                   "register-session", TRUE,
                                                   NULL);

@@ -1,0 +1,5 @@
+usr/bin
+usr/lib/*/@APP_NAME@/@APP_NAME@-extensions-list
+usr/share/applications
+usr/share/dbus-1
+usr/share/man

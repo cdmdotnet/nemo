@@ -113,7 +113,7 @@ Comment[vi]=Truy cập và sắp xếp các tập tin
 Comment[zh_CN]=访问和组织文件
 Comment[zh_HK]=存取與組織檔案
 Comment[zh_TW]=存取並組織檔案
-Exec=nemo %U
+Exec=@APP_NAME@ %U
 Icon=system-file-manager
 # Translators: these are keywords of the file manager
 Keywords=folders;filesystem;explorer;
@@ -197,7 +197,7 @@ Name[vi]=Nhà
 Name[zh_CN]=主目录
 Name[zh_HK]=家
 Name[zh_TW]=家
-Exec=nemo %U
+Exec=@APP_NAME@ %U
 
 [Desktop Action open-computer]
 Name=Computer
@@ -272,7 +272,7 @@ Name[vi]=Máy tính
 Name[zh_CN]=计算机
 Name[zh_HK]=電腦
 Name[zh_TW]=電腦
-Exec=nemo computer:///
+Exec=@APP_NAME@ computer:///
 
 [Desktop Action open-trash]
 Name=Trash
@@ -353,4 +353,4 @@ Name[vi]=Thùng rác
 Name[zh_CN]=回收站
 Name[zh_HK]=垃圾桶
 Name[zh_TW]=回收筒
-Exec=nemo trash:///
+Exec=@APP_NAME@ trash:///

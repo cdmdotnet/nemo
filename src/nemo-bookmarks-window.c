@@ -261,7 +261,7 @@ create_bookmarks_window (NemoBookmarkList *list, GObject *undo_manager_source)
 	set_up_close_accelerator (window);
 	nemo_undo_share_undo_manager (G_OBJECT (window), undo_manager_source);
 
-	gtk_window_set_wmclass (GTK_WINDOW (window), "bookmarks", "Nemo");
+	gtk_window_set_wmclass (GTK_WINDOW (window), "bookmarks", APP_TITLE);
 	nemo_bookmarks_window_restore_geometry (window);
 
 	g_object_weak_ref (G_OBJECT (undo_manager_source), edit_bookmarks_dialog_reset_signals, 

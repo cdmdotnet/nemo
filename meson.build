@@ -3,6 +3,52 @@
 # https://github.com/linuxmint/nemo
 project('nemo', 'c', version : '6.6.4', meson_version : '>=0.56.0')
 
+################################################################################
+# App-name customisation
+#
+# Set -Dapp_name=nemo-plus (or any valid identifier) to produce a co-installable
+# build under a different name.  Everything derived here is used throughout the
+# build so that a single option controls:
+#   - binary names          (nemo  →  nemo-plus)
+#   - data directory        (/usr/share/nemo  →  /usr/share/nemo-plus)
+#   - desktop / D-Bus files (nemo.desktop  →  nemo-plus.desktop)
+#   - About dialog title    ("Nemo"  →  "Nemo Plus")
+#   - D-Bus / GApplication ID  (org.Nemo  →  org.NemoPlus)
+#
+# GSettings schemas intentionally keep the "org.nemo" prefix so that user
+# preferences survive a rename and extensions remain compatible.
+################################################################################
+app_name = get_option('app_name')   # e.g. 'nemo' or 'nemo-plus'
+
+# Human-readable title: replace hyphens with spaces and title-case each word.
+# "nemo"      → "Nemo"
+# "nemo-plus" → "Nemo Plus"
+app_name_parts = app_name.split('-')
+app_title = ''
+foreach part : app_name_parts
+  app_title += part.substring(0, 1).to_upper() + part.substring(1) + ' '
+endforeach
+app_title = app_title.strip()   # e.g. "Nemo Plus"
+
+# D-Bus / GApplication ID: CamelCase without hyphens, under org.*
+# "nemo"      → "org.Nemo"
+# "nemo-plus" → "org.NemoPlus"
+app_id_parts = app_name.split('-')
+app_id_suffix = ''
+foreach part : app_id_parts
+  app_id_suffix += part.substring(0, 1).to_upper() + part.substring(1)
+endforeach
+app_dbus_id       = 'org.' + app_id_suffix          # e.g. "org.NemoPlus"
+app_desktop_dbus_id = app_dbus_id + 'Desktop'       # e.g. "org.NemoPlusDesktop"
+
+# Suffix appended to every Name= line in the .desktop file.
+# Empty for the standard build; '+' for any fork so the launcher shows "Files+"
+# instead of "Files" (avoiding confusion with the stock nemo package).
+app_display_suffix = (app_name == 'nemo') ? '' : '+'
+
+message('Building as: @0@ (title: "@1@", D-Bus ID: @2@, display suffix: "@3@")'.format(
+  app_name, app_title, app_dbus_id, app_display_suffix))
+
 # 1. If the library code has changed at all since last release, then increment revision.
 # 2. If any interfaces have been added, then increment current and set revision to 0.
 # Interface break is not allowed.
@@ -166,6 +212,12 @@ conf.set('ENABLE_NLS', cc.has_header('libintl.h'))
 conf.set('HAVE_GETTEXT', true)
 conf.set('HAVE_LOCALE_H', cc.has_header('locale.h'))
 
+# App-name values available to C code via config.h
+conf.set_quoted('APP_NAME',     app_name)    # "nemo" or "nemo-plus"
+conf.set_quoted('APP_TITLE',    app_title)   # "Nemo" or "Nemo Plus"
+conf.set_quoted('APP_DBUS_ID',  app_dbus_id) # "org.Nemo" or "org.NemoPlus"
+conf.set_quoted('APP_DESKTOP_DBUS_ID', app_desktop_dbus_id)
+
 configure_file(
   input : 'config.h.meson.in',
   output: 'config.h',
@@ -175,7 +227,7 @@ configure_file(
 ################################################################################
 
 rootInclude = include_directories('.')
-nemoDataPath      = join_paths(get_option('prefix'), get_option('datadir'), 'nemo')
+nemoDataPath      = join_paths(get_option('prefix'), get_option('datadir'), app_name)
 libExecPath       = join_paths(get_option('prefix'), get_option('libexecdir'))
 # Keep this constant, in case some extensions are behind in being updated...
 nemoExtensionPath = join_paths(get_option('prefix'), get_option('libdir'), 'nemo', 'extensions-3.0')
@@ -184,7 +236,7 @@ nemo_definitions =  [
   '-DNEMO_DATADIR="@0@"'.format(nemoDataPath),
   '-DNEMO_EXTENSIONDIR="@0@"'.format(nemoExtensionPath),
   '-DLIBEXECDIR="@0@"'.format(libExecPath),
-  '-DG_LOG_DOMAIN="Nemo"'
+  '-DG_LOG_DOMAIN="@0@"'.format(app_title)
 ]
 
 po_subdir = join_paths(meson.project_source_root(), 'po')

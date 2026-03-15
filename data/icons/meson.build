@@ -56,16 +56,21 @@ noInstallIcons = [
   'hicolor/apps/32x32/nemo.svg',
 ]
 
-foreach icon : publicIcons
-  nameParts = icon.split('/')
-  theme   = nameParts[0]
-  context = nameParts[1]
-  size    = nameParts[2]
-  file    = nameParts[3]
-  install_data(icon,
-    install_dir: join_paths(get_option('datadir'), 'icons', theme, size, context)
-  )
-endforeach
+# Public icons go to the shared hicolor theme directory.  Only install them
+# from the base 'nemo' package; a differently-named build (e.g. 'nemo-plus')
+# depends on nemo-data providing these icons.
+if app_name == 'nemo'
+  foreach icon : publicIcons
+    nameParts = icon.split('/')
+    theme   = nameParts[0]
+    context = nameParts[1]
+    size    = nameParts[2]
+    file    = nameParts[3]
+    install_data(icon,
+      install_dir: join_paths(get_option('datadir'), 'icons', theme, size, context)
+    )
+  endforeach
+endif
 
 
 foreach icon : privateIcons
@@ -75,7 +80,7 @@ foreach icon : privateIcons
   size    = nameParts[2]
   file    = nameParts[3]
   install_data(icon,
-    install_dir: join_paths(get_option('datadir'), 'nemo', 'icons', theme, size, context)
+    install_dir: join_paths(nemoDataPath, 'icons', theme, size, context)
   )
 endforeach
 

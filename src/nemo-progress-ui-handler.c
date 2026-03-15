@@ -209,7 +209,7 @@ progress_ui_handler_ensure_window (NemoProgressUIHandler *self)
 	gtk_window_set_title (GTK_WINDOW (progress_window),
 			      _("File Operations"));
 	gtk_window_set_wmclass (GTK_WINDOW (progress_window),
-				"file_progress", "Nemo");
+				"file_progress", APP_TITLE);
 	gtk_window_set_position (GTK_WINDOW (progress_window),
 				 GTK_WIN_POS_CENTER);
 	xapp_gtk_window_set_icon_name (XAPP_GTK_WINDOW (progress_window),
