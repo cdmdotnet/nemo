@@ -1270,9 +1270,20 @@ nemo_file_management_properties_dialog_show (GtkWindow   *window,
 
 	builder = gtk_builder_new ();
     gtk_builder_set_translation_domain (builder, GETTEXT_PACKAGE);
-	gtk_builder_add_from_resource (builder,
-				       "/org/nemo/nemo-file-management-properties.glade",
-				       NULL);
+
+    /* Load from NEMO_DATADIR (e.g. /usr/share/nemo-plus/) rather than from a
+     * GResource.  The GResource path /org/nemo/... is also registered by the
+     * installed libnemo-extension.so from the OS package, which contains the
+     * stock (unpatched) glade.  Because the shared library is loaded before
+     * main() runs, its resource registration wins over the binary's, causing
+     * the old preferences layout to appear even in a patched nemo-plus build.
+     * Loading from a file in NEMO_DATADIR sidesteps this entirely: each build
+     * installs its own copy of the glade under its own data directory. */
+    gchar *glade_path = g_build_filename (NEMO_DATADIR,
+                                          "nemo-file-management-properties.glade",
+                                          NULL);
+    gtk_builder_add_from_file (builder, glade_path, NULL);
+    g_free (glade_path);
 
 	nemo_file_management_properties_dialog_setup (builder, window, initial_page);
 }

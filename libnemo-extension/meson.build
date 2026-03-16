@@ -4,7 +4,7 @@ nemo_i18n_header = [
 ]
 
 nemo_extension_sources = [
-  gresources,
+  extension_gresources,
   'nemo-column-provider.c',
   'nemo-column.c',
   'nemo-desktop-preferences.c',

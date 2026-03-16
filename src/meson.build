@@ -17,6 +17,7 @@ nemoBuiltSources = gnome.gdbus_codegen(
 nemoCommon_sources = [
   dbusBuiltSources,
   nemoBuiltSources,
+  gresources,
   'nemo-action-config-widget.c',
   'nemo-application.c',
   'nemo-blank-desktop-window.c',

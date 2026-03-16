@@ -106,6 +106,7 @@ mimeFile_translated = custom_target('nemo.xml',
 ################################################################################
 dataConf = configuration_data()
 dataConf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
+dataConf.set('APP_NAME', app_name)
 
 rootPolicyFile = configure_file(
   input : 'org.nemo.root.policy.in',

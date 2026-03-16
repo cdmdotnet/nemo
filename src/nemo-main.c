@@ -85,7 +85,7 @@ main (int argc, char *argv[])
 	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 	textdomain (GETTEXT_PACKAGE);
 
-	g_set_prgname ("nemo");
+	g_set_prgname (APP_NAME);
 
 #ifdef HAVE_EXEMPI
 	xmp_init();
