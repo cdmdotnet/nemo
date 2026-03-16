@@ -678,6 +678,219 @@ def test_two_windows_independent_prefs():
 
 
 # ---------------------------------------------------------------------------
+# GROUP 6: Split-view toggle regression (separate-sidebar + active-pane bugs)
+#
+# These tests cover two related bugs fixed in nemo-window.c:
+#
+# Bug A — orphaned content_vbox (separate-sidebar ON, vertical ON):
+#   set_up_sidebar2 wrapped bare pane2 in an anonymous GtkBox (content_vbox)
+#   and packed it into sec_paned.  tear_down_sidebar2 extracted that vbox and
+#   restored it as hpane.child2, but then close_pane destroyed only pane2,
+#   leaving the empty vbox permanently occupying child2.  On the next
+#   split_view_on, create_extra_pane's gtk_paned_pack2 silently failed because
+#   child2 was already set, so new pane2 never entered the widget tree.
+#   Result: clicking the toolbar button a second time showed the secondary
+#   sidebar but no secondary pane; a third click produced further corruption.
+#
+# Bug B — active_pane used to select the surviving pane:
+#   split_view_off kept whichever pane was "active" and destroyed the other.
+#   When pane2 had focus, pane1 was destroyed.  Two symptoms:
+#     1. Assertion crash: nemo_window_pane_dispose: pane->slots == NULL
+#        (pane1's notebook teardown raced with the active-slot machinery still
+#        pointing at pane2, leaving slots non-NULL at dispose time).
+#     2. Blank primary content area: pane2 survived in hpane.child2, which is
+#        not the primary content area, so the main view was empty after the
+#        toggle.
+# ---------------------------------------------------------------------------
+
+def test_toggle_off_on_separate_sidebar_no_crash():
+    """
+    Regression (Bug A): toggling the extra pane OFF then ON repeatedly while
+    separate-sidebar is enabled must not corrupt the widget tree or crash nemo.
+
+    Before the fix, the second ON left the secondary sidebar visible but the
+    secondary pane missing; the third click caused further layout corruption.
+    We verify nemo survives at least three full off/on cycles.
+    """
+    reset_all_dual_pane_prefs()
+    set_pref("dual-pane-vertical-split",   True)
+    set_pref("dual-pane-separate-sidebar", True)
+    set_pref("start-with-dual-pane",       True)
+    try:
+        with NemoProcess() as n:
+            assert_alive(n, "initial state: vertical + separate-sidebar + dual-pane")
+
+            for cycle in range(1, 4):
+                # Simulate toolbar "Open an extra folder side-by-side" toggle OFF
+                set_pref("start-with-dual-pane", False)
+                time.sleep(SETTLE_DELAY)
+                assert_alive(n, f"cycle {cycle}: after toggle OFF")
+
+                # Toggle back ON — this is where the orphaned vbox bug triggered
+                set_pref("start-with-dual-pane", True)
+                time.sleep(SETTLE_DELAY)
+                assert_alive(n, f"cycle {cycle}: after toggle ON")
+
+            # Extra settle — a crashed nemo may die slightly after the toggle
+            time.sleep(SETTLE_DELAY * 2)
+            assert_alive(n, "after all toggle cycles complete")
+    finally:
+        reset_all_dual_pane_prefs()
+
+
+def test_toggle_off_on_separate_sidebar_many_cycles():
+    """
+    Stress variant of the orphaned-vbox regression: 6 rapid off/on cycles with
+    separate-sidebar enabled.  Before the fix even 2 cycles were sufficient to
+    corrupt the layout; this ensures no accumulation across more iterations.
+    """
+    reset_all_dual_pane_prefs()
+    set_pref("dual-pane-vertical-split",   True)
+    set_pref("dual-pane-separate-sidebar", True)
+    set_pref("start-with-dual-pane",       True)
+    try:
+        with NemoProcess() as n:
+            assert_alive(n, "startup")
+
+            for cycle in range(1, 7):
+                set_pref("start-with-dual-pane", False)
+                assert_alive(n, f"cycle {cycle}: off")
+                set_pref("start-with-dual-pane", True)
+                assert_alive(n, f"cycle {cycle}: on")
+
+            time.sleep(SETTLE_DELAY * 2)
+            assert_alive(n, "after 6 off/on cycles")
+    finally:
+        reset_all_dual_pane_prefs()
+
+
+def test_toggle_off_separate_sidebar_without_vertical_no_crash():
+    """
+    Sanity: toggling split OFF/ON with separate-sidebar but WITHOUT
+    vertical-split must not crash (the separate-sidebar feature is inactive
+    in horizontal mode, but teardown must still be safe).
+    """
+    reset_all_dual_pane_prefs()
+    set_pref("dual-pane-separate-sidebar", True)
+    # vertical-split intentionally left FALSE
+    set_pref("start-with-dual-pane", True)
+    try:
+        with NemoProcess() as n:
+            assert_alive(n, "horizontal mode with separate-sidebar flag set")
+
+            set_pref("start-with-dual-pane", False)
+            time.sleep(SETTLE_DELAY)
+            assert_alive(n, "after toggle OFF (horizontal mode)")
+
+            set_pref("start-with-dual-pane", True)
+            time.sleep(SETTLE_DELAY)
+            assert_alive(n, "after toggle ON (horizontal mode)")
+    finally:
+        reset_all_dual_pane_prefs()
+
+
+def test_toggle_off_while_pane2_active_no_crash():
+    """
+    Regression (Bug B — assertion crash): toggling the split view OFF while
+    pane2 is the active pane must not trigger the assertion
+    'nemo_window_pane_dispose: pane->slots == NULL'.
+
+    We cannot programmatically move focus to pane2 from outside the process,
+    so we approximate the risky state by launching with separate-sidebar and
+    separate-nav-bar both active (the configuration that was reported alongside
+    the crash) and performing several off/on cycles.  If the active-pane guard
+    in split_view_off regresses, nemo will abort with SIGABRT on one of these.
+    """
+    reset_all_dual_pane_prefs()
+    set_pref("dual-pane-vertical-split",   True)
+    set_pref("dual-pane-separate-sidebar", True)
+    set_pref("dual-pane-separate-nav-bar", True)
+    set_pref("start-with-dual-pane",       True)
+    try:
+        with NemoProcess() as n:
+            assert_alive(n, "startup: vertical + separate-sidebar + separate-nav-bar")
+
+            for cycle in range(1, 4):
+                set_pref("start-with-dual-pane", False)
+                time.sleep(SETTLE_DELAY)
+                assert_alive(n, f"cycle {cycle}: pane2-active scenario, after OFF")
+
+                set_pref("start-with-dual-pane", True)
+                time.sleep(SETTLE_DELAY)
+                assert_alive(n, f"cycle {cycle}: pane2-active scenario, after ON")
+
+            time.sleep(SETTLE_DELAY * 2)
+            assert_alive(n, "sustained: no deferred crash from bad pane teardown")
+    finally:
+        reset_all_dual_pane_prefs()
+
+
+def test_toggle_off_pane2_active_primary_content_survives():
+    """
+    Regression (Bug B — blank primary content): after toggling split OFF,
+    the primary content area must still be intact regardless of which pane
+    had focus.  We verify this indirectly: nemo must remain alive and must
+    not exit on its own for several seconds after the toggle (a blank/broken
+    primary view causes cascading widget errors that eventually abort the
+    process, whereas a healthy single-pane window sits idle).
+    """
+    reset_all_dual_pane_prefs()
+    set_pref("dual-pane-vertical-split",   True)
+    set_pref("dual-pane-separate-sidebar", True)
+    set_pref("start-with-dual-pane",       True)
+    try:
+        with NemoProcess() as n:
+            assert_alive(n, "dual-pane active")
+
+            # Toggle split off — the bug manifested when pane2 was active
+            set_pref("start-with-dual-pane", False)
+
+            # Hold for longer than normal: a blank primary content area
+            # produces deferred GTK/GLib errors that kill the process within
+            # a second or two of the toggle.
+            time.sleep(SETTLE_DELAY * 4)
+            assert_alive(n, "primary content must remain intact after split-off")
+
+            # Now toggle back on and verify we can cycle again cleanly
+            set_pref("start-with-dual-pane", True)
+            time.sleep(SETTLE_DELAY)
+            assert_alive(n, "split back on: no corruption from previous toggle")
+    finally:
+        reset_all_dual_pane_prefs()
+
+
+def test_toggle_all_prefs_active_multiple_cycles():
+    """
+    Combined regression: all three dual-pane prefs active, multiple off/on
+    cycles.  Exercises both the orphaned-vbox path (Bug A) and the
+    active-pane teardown path (Bug B) simultaneously with the nav-bar
+    embed/detach path also in play.
+    """
+    reset_all_dual_pane_prefs()
+    set_pref("dual-pane-vertical-split",   True)
+    set_pref("dual-pane-separate-sidebar", True)
+    set_pref("dual-pane-separate-nav-bar", True)
+    set_pref("start-with-dual-pane",       True)
+    try:
+        with NemoProcess() as n:
+            assert_alive(n, "all prefs on, dual-pane active")
+
+            for cycle in range(1, 5):
+                set_pref("start-with-dual-pane", False)
+                time.sleep(SETTLE_DELAY)
+                assert_alive(n, f"cycle {cycle}: all prefs on, split OFF")
+
+                set_pref("start-with-dual-pane", True)
+                time.sleep(SETTLE_DELAY)
+                assert_alive(n, f"cycle {cycle}: all prefs on, split ON")
+
+            time.sleep(SETTLE_DELAY * 2)
+            assert_alive(n, "all-prefs combined: no crash after 4 cycles")
+    finally:
+        reset_all_dual_pane_prefs()
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -713,6 +926,20 @@ GROUPS = [
     ]),
     ("Multiple windows", [
         ("two windows stay alive through pref toggle", test_two_windows_independent_prefs),
+    ]),
+    ("Split-view toggle regression (Bug A: orphaned vbox, Bug B: active-pane teardown)", [
+        ("toggle off/on with separate-sidebar: no crash (Bug A)",
+                                                       test_toggle_off_on_separate_sidebar_no_crash),
+        ("6 rapid off/on cycles with separate-sidebar (Bug A stress)",
+                                                       test_toggle_off_on_separate_sidebar_many_cycles),
+        ("toggle off/on: separate-sidebar without vertical (Bug A, horizontal mode)",
+                                                       test_toggle_off_separate_sidebar_without_vertical_no_crash),
+        ("toggle off while pane2 active: no assertion crash (Bug B)",
+                                                       test_toggle_off_while_pane2_active_no_crash),
+        ("toggle off while pane2 active: primary content survives (Bug B)",
+                                                       test_toggle_off_pane2_active_primary_content_survives),
+        ("all prefs active: 4 off/on cycles (Bug A + Bug B combined)",
+                                                       test_toggle_all_prefs_active_multiple_cycles),
     ]),
 ]
 

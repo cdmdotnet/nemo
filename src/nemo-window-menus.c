@@ -781,32 +781,40 @@ update_side_bar_radio_buttons (NemoWindow *window)
 void
 nemo_window_update_show_hide_ui_elements (NemoWindow *window)
 {
-    NemoWindowPane *pane;
 	GtkActionGroup *action_group;
 	GtkAction *action;
+    gboolean split_showing;
+    GList *l;
 
 	action_group = nemo_window_get_main_action_group (window);
+    split_showing = nemo_window_split_view_showing (window);
 
 	action = gtk_action_group_get_action (action_group,
 					      NEMO_ACTION_SHOW_HIDE_EXTRA_PANE);
     gtk_action_block_activate (action);
-	gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (action),
-				      nemo_window_split_view_showing (window));
+	gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (action), split_showing);
     gtk_action_unblock_activate (action);
 
 	nemo_window_update_split_view_actions_sensitivity (window);
 
     update_side_bar_radio_buttons (window);
 
-    pane = nemo_window_get_active_pane (window);
-    if (pane != NULL) {
-        action_group = nemo_window_pane_get_toolbar_action_group (pane);
-
+    /* Sync SHOW_HIDE_EXTRA_PANE in ALL pane toolbar action groups, not just
+     * the active one.  When separate-nav-bar is enabled both toolbars are
+     * visible simultaneously, so both buttons must always reflect the current
+     * split state.  Previously only the active pane was updated, leaving the
+     * inactive pane's button de-synced.  This caused the first click on the
+     * inactive pane's button to be swallowed by the
+     *   is_active != nemo_window_split_view_showing()
+     * guard in action_split_view_callback — the button just toggled its visual
+     * state without doing anything, requiring a second click to actually act. */
+    for (l = window->details->panes; l != NULL; l = l->next) {
+        NemoWindowPane *p = NEMO_WINDOW_PANE (l->data);
+        action_group = nemo_window_pane_get_toolbar_action_group (p);
         action = gtk_action_group_get_action (action_group,
                                               NEMO_ACTION_SHOW_HIDE_EXTRA_PANE);
         gtk_action_block_activate (action);
-        gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (action),
-                                      nemo_window_split_view_showing (window));
+        gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (action), split_showing);
         gtk_action_unblock_activate (action);
     }
 }
