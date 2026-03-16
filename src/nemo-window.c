@@ -2414,6 +2414,10 @@ nemo_window_set_up_sidebar2 (NemoWindow *window)
     if (child2 == pane2_widget) {
         content_vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
         gtk_widget_show (content_vbox);
+        /* Tag this vbox so tear_down_sidebar2 knows it was created here and
+         * must be destroyed during teardown (not a pre-existing wrapper). */
+        g_object_set_data (G_OBJECT (content_vbox), "sidebar2-anonymous-vbox",
+                           GINT_TO_POINTER (1));
         gtk_box_pack_start (GTK_BOX (content_vbox), pane2_widget, TRUE, TRUE, 0);
         g_object_unref (child2);
         child2 = content_vbox;
@@ -2524,9 +2528,37 @@ nemo_window_tear_down_sidebar2 (NemoWindow *window)
     gtk_widget_destroy (sec_paned);
     g_object_unref (sec_paned);
 
-    /* Put pane2 (or its vbox wrapper) back as child2 of hpane */
-    gtk_paned_pack2 (GTK_PANED (hpane), restore_widget, TRUE, FALSE);
-    g_object_unref (restore_widget);
+    /* If restore_widget is an anonymous content_vbox that set_up_sidebar2 created
+     * to wrap bare pane2 (tagged with "sidebar2-anonymous-vbox"), unwrap pane2 out
+     * of it now and destroy the vbox.  This is critical: split_view_off will call
+     * close_pane -> gtk_widget_destroy(pane2) immediately after this function
+     * returns.  If pane2 is still a child of the vbox which is itself child2 of
+     * hpane, destroying pane2 leaves the empty vbox permanently occupying child2.
+     * On the next split_view_on, create_extra_pane calls gtk_paned_pack2 which
+     * silently fails when child2 is already set, so new_pane2 is never added to
+     * the widget tree -- producing the "secondary sidebar but no secondary pane"
+     * symptom. */
+    if (restore_widget != pane2_widget &&
+        g_object_get_data (G_OBJECT (restore_widget), "sidebar2-anonymous-vbox") != NULL)
+    {
+        /* Extract pane2 from the anonymous vbox */
+        g_object_ref (pane2_widget);
+        gtk_container_remove (GTK_CONTAINER (restore_widget), pane2_widget);
+
+        /* Destroy the now-empty anonymous vbox */
+        gtk_widget_destroy (restore_widget);
+        g_object_unref (restore_widget);
+
+        /* Put bare pane2 back as child2 of hpane so close_pane's
+         * gtk_widget_destroy(pane2) removes it cleanly from the tree. */
+        gtk_paned_pack2 (GTK_PANED (hpane), pane2_widget, TRUE, FALSE);
+        g_object_unref (pane2_widget);
+    } else {
+        /* restore_widget is a pre-existing wrapper (e.g. from embed_toolbar);
+         * restore as-is -- the pane destroy path will handle it. */
+        gtk_paned_pack2 (GTK_PANED (hpane), restore_widget, TRUE, FALSE);
+        g_object_unref (restore_widget);
+    }
 
 }
 
@@ -3372,10 +3404,21 @@ nemo_window_split_view_on (NemoWindow *window)
 void
 nemo_window_split_view_off (NemoWindow *window)
 {
-	NemoWindowPane *pane, *active_pane;
+	NemoWindowPane *pane, *pane1;
 	GList *l, *next;
 
-	active_pane = nemo_window_get_active_pane (window);
+    /* pane1 is always the first pane and the one we keep when closing the
+     * split view.  We must NOT use active_pane here: if the user clicked
+     * the toggle while pane2 had focus, active_pane would be pane2, causing
+     * the loop below to destroy pane1 instead and leave pane2 — which lives
+     * in hpane.child2 — as the sole surviving pane.  That results in a blank
+     * primary content area and triggers an assertion failure in
+     * nemo_window_pane_dispose (pane->slots == NULL) because pane1's notebook
+     * teardown races with the active-slot machinery still pointing at pane2.
+     *
+     * The correct invariant: split_view_off always destroys every pane except
+     * pane1 (window->details->panes->data), then makes pane1 active. */
+    pane1 = window->details->panes->data;
 
     /* Tear down all per-pane wrappers before closing panes.
      * Order is critical (spec section 5): statusbars first (need column VBoxes),
@@ -3386,11 +3429,11 @@ nemo_window_split_view_off (NemoWindow *window)
     nemo_window_tear_down_pane1_wrapper (window);
     nemo_window_tear_down_sidebar2 (window);
 
-	/* delete all panes except the first (main) pane */
+	/* delete all panes except pane1 (the primary/first pane) */
 	for (l = window->details->panes; l != NULL; l = next) {
 		next = l->next;
 		pane = l->data;
-		if (pane != active_pane) {
+		if (pane != pane1) {
             g_clear_object (&window->details->secondary_pane_last_location);
             window->details->secondary_pane_last_location = nemo_window_slot_get_location (pane->active_slot);
             /* Detach embedded toolbar back to toolbar_holder before destroying pane */
@@ -3399,10 +3442,22 @@ nemo_window_split_view_off (NemoWindow *window)
 		}
 	}
 
-    /* Also detach pane1 toolbar (pane1 might have had its toolbar embedded) */
-    if (window->details->panes != NULL) {
-        NemoWindowPane *pane1 = window->details->panes->data;
-        nemo_window_pane_detach_toolbar (pane1);
+    /* Detach pane1 toolbar too (it may have been embedded in vertical+separate-nav mode) */
+    nemo_window_pane_detach_toolbar (pane1);
+
+    /* Re-show pane1's toolbar in the holder now that we are back to single-pane
+     * mode.  detach_toolbar() unconditionally hides the toolbar it moves back to
+     * toolbar_holder (so it does not appear as a duplicate while both panes'
+     * toolbars are still in the holder mid-teardown).  Without an explicit
+     * re-show here the holder stays empty after the split closes, even though
+     * View → Toolbar still shows as checked — the global toolbar simply vanishes. */
+    {
+        gboolean show_toolbar = g_settings_get_boolean (nemo_window_state,
+                                                        NEMO_WINDOW_STATE_START_WITH_TOOLBAR);
+        if (show_toolbar &&
+            gtk_widget_get_parent (GTK_WIDGET (pane1->tool_bar)) == window->details->toolbar_holder) {
+            gtk_widget_show (GTK_WIDGET (pane1->tool_bar));
+        }
     }
 
     /* Reset split view pane's position so the position can be
@@ -3412,9 +3467,9 @@ nemo_window_split_view_off (NemoWindow *window)
                   "position-set", FALSE,
                   NULL);
 
-	nemo_window_set_active_pane (window, active_pane);
+	nemo_window_set_active_pane (window, pane1);
 	nemo_navigation_state_set_master (window->details->nav_state,
-					      active_pane->action_group);
+					      pane1->action_group);
 
 	nemo_window_update_show_hide_ui_elements (window);
     nemo_window_refresh_sidebar_colours (window);
