@@ -890,7 +890,7 @@ only_show_active_pane_toolbar_mapping (GValue *value,
         /* If toolbar is embedded inside the pane itself (separate nav bar mode),
          * always show it regardless of which pane is active, so each pane's
          * navigation bar is always visible. */
-        gboolean is_embedded = (gtk_widget_get_parent (pane->tool_bar) == GTK_WIDGET (pane));
+        gboolean is_embedded = pane->toolbar_embedded;
 
         g_value_set_boolean (value, chrome_allowed && (self_is_active || is_embedded));
     }
@@ -1459,7 +1459,7 @@ nemo_window_pane_embed_toolbar (NemoWindowPane *pane)
     GtkWidget *tb = pane->tool_bar;
 
     /* Already embedded in the pane itself? */
-    if (gtk_widget_get_parent (tb) == GTK_WIDGET (pane)) {
+    if (pane->toolbar_embedded) {
         return;
     }
 
@@ -1471,6 +1471,8 @@ nemo_window_pane_embed_toolbar (NemoWindowPane *pane)
     gtk_box_reorder_child (GTK_BOX (pane), tb, 0);
     gtk_widget_show (tb);
     g_object_unref (tb);
+
+    pane->toolbar_embedded = TRUE;
 }
 
 /**
@@ -1484,7 +1486,7 @@ nemo_window_pane_detach_toolbar (NemoWindowPane *pane)
     GtkWidget *tb = pane->tool_bar;
 
     /* Already in toolbar_holder? */
-    if (gtk_widget_get_parent (tb) == window->details->toolbar_holder) {
+    if (!pane->toolbar_embedded) {
         return;
     }
 
@@ -1495,4 +1497,6 @@ nemo_window_pane_detach_toolbar (NemoWindowPane *pane)
     /* Keep it hidden — the primary toolbar is what's shown in the holder */
     gtk_widget_hide (tb);
     g_object_unref (tb);
+
+    pane->toolbar_embedded = FALSE;
 }

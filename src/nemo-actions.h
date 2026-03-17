@@ -37,12 +37,16 @@
 #define NEMO_ACTION_UP_ACCEL "UpAccel"
 #define NEMO_ACTION_FORWARD "Forward"
 #define NEMO_ACTION_SHOW_HIDE_SIDEBAR "Show Hide Sidebar"
+/* Replaces the Sidebar List menu in View when separate-sidebar-per-pane is on */
+#define NEMO_ACTION_SHOW_HIDE_DUAL_SIDEBARS "Show Hide Dual Sidebars"
 
 #define NEMO_ACTION_SHOW_HIDE_TOOLBAR "Show Hide Toolbar"
 #define NEMO_ACTION_TOOLBAR_ALWAYS_SHOW_PATHBAR "Toolbar Always Show Pathbar"
 #define NEMO_ACTION_TOOLBAR_ALWAYS_SHOW_ENTRY "Toolbar Always Show Entry"
 
 #define NEMO_ACTION_SHOW_HIDE_STATUSBAR "Show Hide Statusbar"
+/* Companion to Show Hide Statusbar; visible when separate-statusbar-per-pane is on */
+#define NEMO_ACTION_SHOW_HIDE_DUAL_STATUSBARS "Show Hide Dual Statusbars"
 #define NEMO_ACTION_SHOW_HIDE_MENUBAR "Show Hide Menubar"
 #define NEMO_ACTION_SHOW_HIDE_LOCATION_BAR "Show Hide Location Bar"
 #define NEMO_ACTION_SHOW_HIDE_EXTRA_PANE "Show Hide Extra Pane"

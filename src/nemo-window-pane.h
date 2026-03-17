@@ -67,6 +67,11 @@ struct _NemoWindowPane {
 	GtkWidget *path_bar;
 	GtkWidget *search_bar;
 	GtkWidget *tool_bar;
+	/* TRUE when tool_bar has been reparented into the pane itself
+	 * (separate-nav-bar mode); FALSE when it lives in toolbar_holder.
+	 * Replaces repeated gtk_widget_get_parent(tool_bar) == GTK_WIDGET(pane)
+	 * checks throughout nemo-window.c and nemo-window-pane.c. */
+	gboolean toolbar_embedded;
 
 	gboolean temporary_navigation_bar;
 	gboolean temporary_search_bar;
