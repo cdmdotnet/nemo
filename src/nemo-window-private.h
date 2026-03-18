@@ -39,23 +39,23 @@
 /* FIXME bugzilla.gnome.org 42575: Migrate more fields into here. */
 struct NemoWindowDetails
 {
-        GtkWidget *statusbar;
-        GtkWidget *menubar;
+	GtkWidget *statusbar;
+	GtkWidget *menubar;
 
-        GtkWidget *nemo_status_bar;
+	GtkWidget *nemo_status_bar;
 
-        GtkUIManager *ui_manager;
-        GtkActionGroup *main_action_group; /* owned by ui_manager */
-        guint help_message_cid;
+	GtkUIManager *ui_manager;
+	GtkActionGroup *main_action_group; /* owned by ui_manager */
+	guint help_message_cid;
 
-        /* Menus. */
-        guint extensions_menu_merge_id;
-        GtkActionGroup *extensions_menu_action_group;
+	/* Menus. */
+	guint extensions_menu_merge_id;
+	GtkActionGroup *extensions_menu_action_group;
 
-        GtkActionGroup *bookmarks_action_group;
-        GtkActionGroup *toolbar_action_group;
-        guint bookmarks_merge_id;
-        NemoBookmarkList *bookmark_list;
+	GtkActionGroup *bookmarks_action_group;
+	GtkActionGroup *toolbar_action_group;
+	guint bookmarks_merge_id;
+	NemoBookmarkList *bookmark_list;
 
 	NemoWindowShowHiddenFilesMode show_hidden_files_mode;
 
@@ -65,80 +65,80 @@ struct NemoWindowDetails
 	 */
 	gboolean temporarily_ignore_view_signals;
 
-        /* available panes, and active pane.
-         * Both of them may never be NULL.
-         */
-        GList *panes;
-        NemoWindowPane *active_pane;
+	/* available panes, and active pane.
+	 * Both of them may never be NULL.
+	 */
+	GList *panes;
+	NemoWindowPane *active_pane;
 
-        GtkWidget *content_paned;
-        NemoNavigationState *nav_state;
-        
-        /* Side Pane */
-        int side_pane_width;
-        GtkWidget *sidebar;
-        gchar *sidebar_id;
+	GtkWidget *content_paned;
+	NemoNavigationState *nav_state;
+	
+	/* Side Pane */
+	int side_pane_width;
+	GtkWidget *sidebar;
+	gchar *sidebar_id;
 
-        gboolean show_sidebar;
+	gboolean show_sidebar;
 
-        /* Toolbar */
-        GtkWidget *toolbar;
+	/* Toolbar */
+	GtkWidget *toolbar;
 
-        /* Toolbar holder */
-        GtkWidget *toolbar_holder;
+	/* Toolbar holder */
+	GtkWidget *toolbar_holder;
 
-        guint extensions_toolbar_merge_id;
-        GtkActionGroup *extensions_toolbar_action_group;
+	guint extensions_toolbar_merge_id;
+	GtkActionGroup *extensions_toolbar_action_group;
 
-        guint menu_hide_delay_id;
+	guint menu_hide_delay_id;
 
-        /* split view */
-        GtkWidget *split_view_hpane;
+	/* split view */
+	GtkWidget *split_view_hpane;
 
-        // A closed pane's location, valid until the remaining pane
-        // location changes.
-        GFile *secondary_pane_last_location;
+	// A closed pane's location, valid until the remaining pane
+	// location changes.
+	GFile *secondary_pane_last_location;
 
-        /* second sidebar for dual-pane separate sidebar mode */
-        GtkWidget *sidebar2;
-        gchar *sidebar2_id;
-        int side_pane2_width;
-        /* outer HPaned wrapper for pane1 column (sidebar1-inline + pane1) in per-pane mode */
-        GtkWidget *primary_pane_content_paned;
-        /* outer HPaned wrapper for pane2 column (sidebar2 + pane2) in per-pane mode */
-        GtkWidget *secondary_pane_content_paned;
+	/* second sidebar for dual-pane separate sidebar mode */
+	GtkWidget *sidebar2;
+	int side_pane2_width;
+	/* outer HPaned wrapper for pane1 column (sidebar1-inline + pane1) in per-pane mode */
+	GtkWidget *primary_pane_content_paned;
+	/* outer HPaned wrapper for pane2 column (sidebar2 + pane2) in per-pane mode */
+	GtkWidget *secondary_pane_content_paned;
 
-        /* per-pane statusbars (only when dual-pane-separate-statusbar is on) */
-        GtkWidget *nemo_status_bar2;       /* NemoStatusBar for pane2 */
-        GtkWidget *statusbar2;             /* inner GtkStatusbar from nemo_status_bar2 */
-        GtkWidget *statusbar2_eb;          /* event-box wrapper */
-        GtkWidget *statusbar2_sep;         /* separator above statusbar2 */
-        /* pane1 statusbar container (the original nemo_status_bar moved into pane1 col) */
-        GtkWidget *statusbar1_eb;          /* event-box wrapper used in pane1 col */
-        GtkWidget *statusbar1_sep;         /* separator above statusbar1 in pane1 col */
-        /* global statusbar outer wrappers — stored so we can hide/show them
-         * without touching nemo_status_bar's visible property (which is bound
-         * to GSettings and would corrupt the floating-bar visibility logic) */
-        GtkWidget *statusbar_global_eb;    /* event-box wrapping nemo_status_bar */
-        GtkWidget *statusbar_global_sep;   /* separator above the global statusbar */
+	/* per-pane statusbars (only when dual-pane-separate-statusbar is on) */
+	GtkWidget *nemo_status_bar1;       /* NemoStatusBar for pane1 (mirrors nemo_status_bar2) */
+	GtkWidget *nemo_status_bar2;       /* NemoStatusBar for pane2 */
+	GtkWidget *statusbar2;             /* inner GtkStatusbar from nemo_status_bar2 */
+	GtkWidget *statusbar2_eb;          /* event-box wrapper */
+	GtkWidget *statusbar2_sep;         /* separator above statusbar2 */
+	/* pane1 statusbar container (the original nemo_status_bar moved into pane1 col) */
+	GtkWidget *statusbar1_eb;          /* event-box wrapper used in pane1 col */
+	GtkWidget *statusbar1_sep;         /* separator above statusbar1 in pane1 col */
+	/* global statusbar outer wrappers — stored so we can hide/show them
+	 * without touching nemo_status_bar's visible property (which is bound
+	 * to GSettings and would corrupt the floating-bar visibility logic) */
+	GtkWidget *statusbar_global_eb;    /* event-box wrapping nemo_status_bar */
+	GtkWidget *statusbar_global_sep;   /* separator above the global statusbar */
 
-        gboolean disable_chrome;
+	gboolean disable_chrome;
 
-        guint sidebar_width_handler_id;
+	guint sidebar_width_handler_id;
 
-        guint menu_state_changed_id;
+	guint menu_state_changed_id;
 
-        gboolean menu_skip_release;
-        gboolean menu_show_queued;
+	gboolean menu_skip_release;
+	gboolean menu_show_queued;
 
-        gchar *ignore_meta_view_id;
-        gint ignore_meta_zoom_level;
-        GList *ignore_meta_visible_columns;
-        GList *ignore_meta_column_order;
-        gchar *ignore_meta_sort_column;
-        gint ignore_meta_sort_direction;
+	gchar *ignore_meta_view_id;
+	gint ignore_meta_zoom_level;
+	GList *ignore_meta_visible_columns;
+	GList *ignore_meta_column_order;
+	gchar *ignore_meta_sort_column;
+	gint ignore_meta_sort_direction;
 
-        gboolean dynamic_menu_entries_current;
+	gboolean dynamic_menu_entries_current;
 };
 
 /* window geometry */
@@ -153,20 +153,20 @@ struct NemoWindowDetails
 #define NEMO_WINDOW_DEFAULT_HEIGHT		550
 
 typedef void (*NemoBookmarkFailedCallback) (NemoWindow *window,
-                                                NemoBookmark *bookmark);
+						NemoBookmark *bookmark);
 
 void               nemo_window_sync_view_type                    (NemoWindow    *window);
 void               nemo_window_load_extension_menus                  (NemoWindow    *window);
 NemoWindowPane *nemo_window_get_next_pane                        (NemoWindow *window);
 void               nemo_menus_append_bookmark_to_menu                (NemoWindow    *window, 
-                                                                          NemoBookmark  *bookmark, 
-                                                                          const char        *parent_path,
-                                                                          const char        *parent_id,
-                                                                          guint              index_in_parent,
-                                                                          GtkActionGroup    *action_group,
-                                                                          guint              merge_id,
-                                                                          GCallback          refresh_callback,
-                                                                          NemoBookmarkFailedCallback failed_callback);
+									  NemoBookmark  *bookmark, 
+									  const char        *parent_path,
+									  const char        *parent_id,
+									  guint              index_in_parent,
+									  GtkActionGroup    *action_group,
+									  guint              merge_id,
+									  GCallback          refresh_callback,
+									  NemoBookmarkFailedCallback failed_callback);
 
 NemoWindowSlot *nemo_window_get_slot_for_view                    (NemoWindow *window,
 									  NemoView   *view);
@@ -174,7 +174,7 @@ NemoWindowSlot *nemo_window_get_slot_for_view                    (NemoWindow *wi
 void                 nemo_window_set_active_slot                     (NemoWindow    *window,
 									  NemoWindowSlot *slot);
 void                 nemo_window_set_active_pane                     (NemoWindow *window,
-                                                                          NemoWindowPane *new_pane);
+									  NemoWindowPane *new_pane);
 NemoWindowPane * nemo_window_get_active_pane                     (NemoWindow *window);
 
 
@@ -200,7 +200,7 @@ void               nemo_window_update_show_hide_ui_elements           (NemoWindo
 
 /* window toolbar */
 void               nemo_window_close_pane                            (NemoWindow    *window,
-                                                                          NemoWindowPane *pane);
+									  NemoWindowPane *pane);
 void               nemo_window_show_location_entry                   (NemoWindow    *window);
 
 #endif /* NEMO_WINDOW_PRIVATE_H */

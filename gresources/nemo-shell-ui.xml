@@ -63,6 +63,8 @@
 				<separator/>
 				<menuitem name="Show Hide Sidebar" action="Show Hide Sidebar"/>
 			</menu>
+			<!-- Shown instead of Sidebar List when separate-sidebar-per-pane is active -->
+			<menuitem name="Show Hide Dual Sidebars" action="Show Hide Dual Sidebars"/>
             <menu action="Toolbar List">
                 <menuitem name="Toolbar Show Pathbar" action="Toolbar Always Show Pathbar"/>
                 <menuitem name="Toolbar Show Entry" action="Toolbar Always Show Entry"/>
@@ -71,6 +73,8 @@
             </menu>
             <menuitem name="Show Hide Menubar" action="Show Hide Menubar"/>
 			<menuitem name="Show Hide Statusbar" action="Show Hide Statusbar"/>
+			<!-- Shown alongside Show Hide Statusbar (greyed out) when separate-statusbar-per-pane is active -->
+			<menuitem name="Show Hide Dual Statusbars" action="Show Hide Dual Statusbars"/>
             <separator/>
 			<menuitem name="Show Hide Extra Pane" action="Show Hide Extra Pane"/>
             <menuitem name="Edit Location" action="Edit Location"/>
