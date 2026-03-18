@@ -44,6 +44,9 @@
 #include "nemo-icon-view.h"
 #include "nemo-list-view.h"
 #include "nemo-toolbar.h"
+#include "nemo-preview-pane.h"
+#include "nemo-view.h"
+#include <libnemo-private/nemo-file.h>
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
@@ -659,6 +662,65 @@ nemo_window_update_split_view_actions_sensitivity (NemoWindow *window)
 }
 
 static void
+action_preview_pane_callback (GtkAction *action,
+			      gpointer   user_data)
+{
+	NemoWindow *window;
+	gboolean    is_active;
+
+	if (NEMO_IS_DESKTOP_WINDOW (user_data))
+		return;
+
+	window    = NEMO_WINDOW (user_data);
+	is_active = gtk_toggle_action_get_active (GTK_TOGGLE_ACTION (action));
+
+	window->details->preview_pane_visible = is_active;
+
+	if (window->details->preview_pane) {
+		if (is_active) {
+			/* Show the preview pane — give it a default width of 280px.
+			 * preview_pane_outer holds the outer GtkPaned reference. */
+			gtk_widget_show (window->details->preview_pane);
+			if (GTK_IS_PANED (window->details->preview_pane_outer)) {
+				GtkWidget *outer = window->details->preview_pane_outer;
+				gint total = gtk_widget_get_allocated_width (outer);
+				gtk_paned_set_position (GTK_PANED (outer),
+				                        MAX (total - 280, total / 2));
+			}
+
+			/* Issue 5: immediately preview whatever is already selected
+			 * in the active pane so the user doesn't see a blank pane. */
+			NemoWindowSlot *slot = nemo_window_get_active_slot (window);
+			if (slot && slot->content_view) {
+				GList *selection = nemo_view_get_selection (slot->content_view);
+				if (selection && g_list_length (selection) == 1) {
+					NemoFile *file = NEMO_FILE (selection->data);
+					if (!nemo_file_is_directory (file)) {
+						char *uri       = nemo_file_get_uri (file);
+						char *mime_type = nemo_file_get_mime_type (file);
+						nemo_preview_pane_load_uri (
+							NEMO_PREVIEW_PANE (window->details->preview_pane),
+							uri, mime_type);
+						g_free (uri);
+						g_free (mime_type);
+					}
+				}
+				nemo_file_list_free (selection);
+			}
+		} else {
+			gtk_widget_hide (window->details->preview_pane);
+			nemo_preview_pane_clear (
+				NEMO_PREVIEW_PANE (window->details->preview_pane));
+		}
+	}
+
+	/* Sync the View menu item and all toolbar buttons (primary, secondary,
+	 * and any per-pane toolbars) to match the new state — same pattern
+	 * as action_split_view_callback. */
+	nemo_window_update_show_hide_ui_elements (window);
+}
+
+static void
 action_split_view_callback (GtkAction *action,
 			    gpointer user_data)
 {
@@ -823,6 +885,18 @@ nemo_window_update_show_hide_ui_elements (NemoWindow *window)
 	gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (action), split_showing);
 	gtk_action_unblock_activate (action);
 
+	/* Sync SHOW_HIDE_PREVIEW_PANE in the main action group */
+	{
+		gboolean pv_showing = window->details->preview_pane_visible;
+		GtkAction *pv_action = gtk_action_group_get_action (action_group,
+								    NEMO_ACTION_SHOW_HIDE_PREVIEW_PANE);
+		if (pv_action) {
+			gtk_action_block_activate (pv_action);
+			gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (pv_action), pv_showing);
+			gtk_action_unblock_activate (pv_action);
+		}
+	}
+
 	nemo_window_update_split_view_actions_sensitivity (window);
 
 	update_side_bar_radio_buttons (window);
@@ -844,6 +918,17 @@ nemo_window_update_show_hide_ui_elements (NemoWindow *window)
 	gtk_action_block_activate (action);
 	gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (action), split_showing);
 	gtk_action_unblock_activate (action);
+	/* Sync Preview Pane toggle in each pane toolbar */
+	{
+		gboolean pv = window->details->preview_pane_visible;
+		GtkAction *pva = gtk_action_group_get_action (action_group,
+							  NEMO_ACTION_SHOW_HIDE_PREVIEW_PANE);
+		if (pva) {
+			gtk_action_block_activate (pva);
+			gtk_toggle_action_set_active (GTK_TOGGLE_ACTION (pva), pv);
+			gtk_action_unblock_activate (pva);
+		}
+	}
 	}
 
 	/* --- Dual-sidebar menu visibility ---
@@ -1691,6 +1776,11 @@ static const GtkToggleActionEntry main_toggle_entries[] = {
   /* tooltip */                  N_("Toggle the display of thumbnails in the current directory"),
   /* callback */                 G_CALLBACK (action_show_thumbnails_callback),
   /* default */                  FALSE },
+  /* name, stock id */     { NEMO_ACTION_SHOW_HIDE_PREVIEW_PANE, NULL,
+  /* label, accelerator */   N_("_Preview Pane"), NULL,
+  /* tooltip */              N_("Show a preview of the selected file in a side panel"),
+			     G_CALLBACK (action_preview_pane_callback),
+  /* is_active */            FALSE },
 };
 
 static const GtkRadioActionEntry sidebar_radio_entries[] = {
@@ -1930,6 +2020,20 @@ nemo_window_create_toolbar_action_group (NemoWindow *window)
 
 	g_object_unref (action);
 
+	/* Preview Pane toggle — also needs to live in the toolbar action group so
+	 * toolbar_create_toolbutton() can find it and the button stays in sync. */
+	action = GTK_ACTION (gtk_toggle_action_new (NEMO_ACTION_SHOW_HIDE_PREVIEW_PANE,
+			 NULL,
+			 _("Show a preview of the selected file in a side panel"),
+			 NULL));
+	g_signal_connect (action, "activate",
+		      G_CALLBACK (action_preview_pane_callback),
+		      window);
+	gtk_action_group_add_action (action_group, action);
+	gtk_action_set_icon_name (GTK_ACTION (action), "nemo-preview-pane-symbolic");
+	g_object_unref (action);
+
+
 	navigation_state = nemo_window_get_navigation_state (window);
 	nemo_navigation_state_add_group (navigation_state, action_group);
 
@@ -2077,6 +2181,15 @@ nemo_window_initialize_menus (NemoWindow *window)
 	gtk_action_group_add_toggle_actions (action_group,
 					     main_toggle_entries, G_N_ELEMENTS (main_toggle_entries),
 					     window);
+
+	/* Set icon on the Preview Pane toggle — the main_toggle_entries table uses
+	 * NULL for stock-id so we set the icon programmatically here. */
+	{
+		GtkAction *pv = gtk_action_group_get_action (action_group,
+								 NEMO_ACTION_SHOW_HIDE_PREVIEW_PANE);
+		if (pv) gtk_action_set_icon_name (pv, "nemo-preview-pane-symbolic");
+	}
+
 	gtk_action_group_add_radio_actions (action_group,
 					    sidebar_radio_entries, G_N_ELEMENTS (sidebar_radio_entries),
 					    0, G_CALLBACK (sidebar_radio_entry_changed_cb),

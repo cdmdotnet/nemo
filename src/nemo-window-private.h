@@ -122,6 +122,11 @@ struct NemoWindowDetails
 	GtkWidget *statusbar_global_eb;    /* event-box wrapping nemo_status_bar */
 	GtkWidget *statusbar_global_sep;   /* separator above the global statusbar */
 
+	/* Preview pane — right-hand file preview panel */
+	GtkWidget *preview_pane;           /* NemoPreviewPane widget              */
+	GtkWidget *preview_pane_outer;     /* GtkPaned wrapping content+preview   */
+	gboolean   preview_pane_visible;   /* current show/hide state             */
+
 	gboolean disable_chrome;
 
 	guint sidebar_width_handler_id;
