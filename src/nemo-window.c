@@ -48,6 +48,7 @@
 #include "nemo-icon-view.h"
 #include "nemo-list-view.h"
 #include "nemo-statusbar.h"
+#include "nemo-preview-pane.h"
 
 #include <eel/eel-debug.h>
 #include <eel/eel-gtk-extensions.h>
@@ -784,8 +785,29 @@ nemo_window_constructed (GObject *self)
 	gtk_widget_set_hexpand (window->details->content_paned, TRUE);
 	gtk_widget_set_vexpand (window->details->content_paned, TRUE);
 
-	gtk_container_add (GTK_CONTAINER (grid), window->details->content_paned);
-	gtk_widget_show (window->details->content_paned);
+	/* Wrap content_paned + preview pane in a GtkPaned so the user can
+	 * drag the divider to resize the preview.  The preview pane sits in
+	 * pack2 and is hidden (position pinned to the far right) until the
+	 * toggle is activated. */
+	{
+		GtkWidget *outer_paned = gtk_paned_new (GTK_ORIENTATION_HORIZONTAL);
+		gtk_widget_set_hexpand (outer_paned, TRUE);
+		gtk_widget_set_vexpand (outer_paned, TRUE);
+		gtk_container_add (GTK_CONTAINER (grid), outer_paned);
+		gtk_widget_show (outer_paned);
+
+		gtk_paned_pack1 (GTK_PANED (outer_paned),
+		                 window->details->content_paned, TRUE, FALSE);
+		gtk_widget_show (window->details->content_paned);
+
+		GtkWidget *preview = nemo_preview_pane_new ();
+		window->details->preview_pane = preview;
+		/* pack2 shrinks but doesn't resize below its natural width */
+		gtk_paned_pack2 (GTK_PANED (outer_paned), preview, FALSE, FALSE);
+		/* hidden by default — show only when toggled on */
+		window->details->preview_pane_visible = FALSE;
+		window->details->preview_pane_outer = outer_paned; /* holds the GtkPaned ref */
+	}
 
 	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	gtk_paned_pack2 (GTK_PANED (window->details->content_paned), vbox,
@@ -1697,6 +1719,51 @@ zoom_level_changed_callback (NemoView *view,
 	nemo_window_sync_zoom_widgets (window);
 }
 
+/* Called whenever the file selection changes in the ACTIVE slot's view.
+ * (Connected via nemo_window_connect_content_view which only fires for
+ *  the active slot — this is intentional: the preview tracks whichever
+ *  pane the user is actively working in.)
+ * Updates the preview pane if it is currently visible.
+ */
+static void
+nemo_window_preview_selection_changed (NemoView *view, NemoWindow *window)
+{
+	GList        *selection;
+	NemoFile     *file;
+	char         *uri;
+	char         *mime_type;
+
+	if (!window->details->preview_pane_visible)
+		return;
+
+	selection = nemo_view_get_selection (view);
+
+	/* Only preview when exactly one non-directory file is selected */
+	if (!selection || g_list_length (selection) != 1) {
+		nemo_preview_pane_clear (NEMO_PREVIEW_PANE (window->details->preview_pane));
+		nemo_file_list_free (selection);
+		return;
+	}
+
+	file = NEMO_FILE (selection->data);
+
+	if (nemo_file_is_directory (file)) {
+		nemo_preview_pane_clear (NEMO_PREVIEW_PANE (window->details->preview_pane));
+		nemo_file_list_free (selection);
+		return;
+	}
+
+	uri       = nemo_file_get_uri (file);
+	mime_type = nemo_file_get_mime_type (file);
+
+	nemo_preview_pane_load_uri (NEMO_PREVIEW_PANE (window->details->preview_pane),
+	                            uri, mime_type);
+
+	g_free (uri);
+	g_free (mime_type);
+	nemo_file_list_free (selection);
+}
+
 /* These are called
  *   A) when switching the view within the active slot
  *   B) when switching the active slot
@@ -1719,6 +1786,11 @@ nemo_window_connect_content_view (NemoWindow *window,
 
 	g_signal_connect (view, "zoom-level-changed",
 			  G_CALLBACK (zoom_level_changed_callback),
+			  window);
+
+	/* Connect preview pane: update when selection changes in this view */
+	g_signal_connect (view, "selection-changed",
+			  G_CALLBACK (nemo_window_preview_selection_changed),
 			  window);
 
 	/* Update displayed the selected view type in the toolbar and menu. */
@@ -1745,6 +1817,9 @@ nemo_window_disconnect_content_view (NemoWindow *window,
 	}
 
 	g_signal_handlers_disconnect_by_func (view, G_CALLBACK (zoom_level_changed_callback), window);
+	g_signal_handlers_disconnect_by_func (view,
+					   G_CALLBACK (nemo_window_preview_selection_changed),
+					   window);
 }
 
 /**

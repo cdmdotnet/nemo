@@ -250,6 +250,14 @@ subdir('gresources')
 subdir('libnemo-extension')
 subdir('libnemo-private')
 # subdir('po')
+
+################################################################################
+# Preview Pane — all optional renderers (GStreamer, WebKit2GTK, libevview)
+# are loaded at runtime via GModule (dlopen).  No dev headers are required
+# at build time.  The pane detects missing libraries at runtime and shows
+# an install hint to the user.
+################################################################################
+
 subdir('src')
 subdir('search-helpers')
 subdir('test')
@@ -267,6 +275,8 @@ message('\n'.join(['',
 '    Tracker support:        @0@'.format(tracker_enabled),
 '    Wayland support:        @0@'.format(cc.has_header('gdk/gdkwayland.h', dependencies: gtk)),
 '    gtk-layer-shell:        @0@'.format(gtk_layer_shell_enabled),
+'',
+'    Preview pane:       runtime detection via GModule (no build-time deps)',
 '',
 '    nemo-extension documentation: @0@'.format(gtkdoc_enabled),
 '    nemo-extension introspection: @0@'.format(true),
