@@ -1,7 +1,7 @@
 # Meson build file
 
 # https://github.com/linuxmint/nemo
-project('nemo', 'c', version : '6.6.4', meson_version : '>=0.56.0')
+project('nemo', 'c', version : '6.6.3', meson_version : '>=0.56.0')
 
 ################################################################################
 # App-name customisation

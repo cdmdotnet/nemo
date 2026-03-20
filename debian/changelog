@@ -1,11 +1,9 @@
-nemo (6.6.4) zena; urgency=medium
+nemo (6.6.3) zena; urgency=medium
 
   [ cdmdotnet Limited ]
   * dual-pane: add vertical split, separate sidebars, nav bars, and statusbars
-
- -- cdmdotnet Limited <root@linuxmint.com>  Tue, 16 Mar 2026 07:29:12 +0000
-
-nemo (6.6.3) zena; urgency=medium
+  * pre-view pane: Adds a Preview Pane to Nemo that shows a live preview of files in a right-hand panel.
+  * These features mirror the dual-pane/preview-pane workflow of xplorer² on windows.
 
   [ Michael Webster ]
   * nemo-blank-desktop-window.c: Fix potential crash when actions are updates.
