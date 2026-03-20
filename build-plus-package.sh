@@ -19,7 +19,7 @@
 set -e
 
 VERSION="6.6.3"
-RELEASE="3"
+RELEASE="5"
 ARCH="amd64"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -289,7 +289,7 @@ build_nemo() {
 
 build_nemo_plus() {
     local app_name="nemo-plus"
-    local description="Nemo file manager with dual-pane enhancements"
+    local description="Nemo file manager with dual-pane and preview-pane enhancements"
     local build_dir="${SCRIPT_DIR}/build-${app_name}"
     local pkg_dir="${SCRIPT_DIR}/pkg-${app_name}"
     local deb_file="${SCRIPT_DIR}/${app_name}_${VERSION}-${RELEASE}_${ARCH}.deb"
@@ -320,14 +320,22 @@ build_nemo_plus() {
 Package: ${app_name}
 Version: ${VERSION}-${RELEASE}
 Architecture: ${ARCH}
-Maintainer: Nemo User <nemo@localhost>
+Maintainer: cdmdotnet Limited <nemo@localhost>
 Depends: ${depends}
 Replaces: nemo-data
 Breaks: nemo-data (<< ${VERSION})
 Description: ${description}
- Fork of Nemo ${VERSION} with vertical split mode, per-pane sidebars,
- per-pane navigation bar, and per-pane statusbar.
- Co-installable with the standard nemo package — uses separate binary
+ .
+ Nemo-Plus is a fork of nemo with additional dual-pane/preview-pane features
+ similar to those of xplorer² on windows. This was done as nemo,
+ being part of Linux Mint, has a strong reputation for being one of (if not the)
+ best distros for those wishing to move from Windows to Linux.
+ This has similarities to 4pane, which we would have stuck with, however found
+ its layout/aesthetics a bit dated and out of place in Cinnamon along with
+ cross app integration for features like copy-paste/drag-and-drop of files
+ to be inconsistent when compared to nemo.
+ .
+ Co-installable with the standard/stock nemo package — uses separate binary
  (/usr/bin/nemo-plus), data directory (/usr/share/nemo-plus), and
  D-Bus name (org.NemoPlus).
  Installs an updated GSettings schema (strict superset of nemo-data's)
@@ -343,6 +351,9 @@ set -e
 if which glib-compile-schemas >/dev/null 2>&1; then
     glib-compile-schemas /usr/share/glib-2.0/schemas/ || true
 fi
+if which gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor/ || true
+fi
 POSTINST
     chmod 755 "${pkg_dir}/DEBIAN/postinst"
 
@@ -353,8 +364,27 @@ set -e
 if which glib-compile-schemas >/dev/null 2>&1; then
     glib-compile-schemas /usr/share/glib-2.0/schemas/ || true
 fi
+if which gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor/ || true
+fi
 POSTRM
     chmod 755 "${pkg_dir}/DEBIAN/postrm"
+
+    # ── bundle the preview-pane SVG icon ─────────────────────────────────────
+    # nemo-plus may be installed alongside the OS stock nemo (not our patched
+    # nemo package), so we cannot rely on the nemo package to provide this icon.
+    # Copy it directly into the hicolor icon tree inside this package so it is
+    # always present regardless of which nemo variant is installed.
+    local svg_src="${SCRIPT_DIR}/data/icons/hicolor/actions/scalable/nemo-preview-pane-symbolic.svg"
+    local svg_dst="${pkg_dir}/usr/share/icons/hicolor/scalable/actions"
+    if [ -f "${svg_src}" ]; then
+        mkdir -p "${svg_dst}"
+        cp "${svg_src}" "${svg_dst}/nemo-preview-pane-symbolic.svg"
+        echo "  Bundled nemo-preview-pane-symbolic.svg into package."
+    else
+        echo "  WARNING: SVG source not found: ${svg_src}" >&2
+        echo "  The preview pane toolbar icon will be missing in the installed package." >&2
+    fi
 
     dpkg-deb --build "${pkg_dir}" "${deb_file}"
 
