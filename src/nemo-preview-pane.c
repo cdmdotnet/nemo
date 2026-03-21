@@ -939,8 +939,8 @@ gst_launch (NemoPreviewPane *self, const char *uri, gboolean is_video)
     p->gst_bus_watch_id = _gst_bus_add_watch (bus, (GstBusFunc)gst_bus_call, self);
     _gst_object_unref (bus);
 
-    gint state_ret = _gst_element_set_state (p->gst_pipeline, MY_GST_STATE_PLAYING);
-    DEBUG ("gst_launch: set_state(PLAYING) returned %d", state_ret);
+    DEBUG ("gst_launch: set_state(PLAYING) returned %d",
+           _gst_element_set_state (p->gst_pipeline, MY_GST_STATE_PLAYING));
 
     p->gst_playing  = TRUE;
     p->gst_duration = -1.0;

@@ -19,7 +19,7 @@
 set -e
 
 VERSION="6.6.3"
-RELEASE="4"
+RELEASE="6"
 ARCH="amd64"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -329,7 +329,7 @@ Description: ${description}
  Nemo-Plus is a fork of nemo with additional dual-pane/preview-pane features
  similar to those of xplorer² on windows. This was done as nemo,
  being part of Linux Mint, has a strong reputation for being one of (if not the)
- best distro for those wishing to move from Windows to Linux.
+ best distros for those wishing to move from Windows to Linux.
  This has similarities to 4pane, which we would have stuck with, however found
  its layout/aesthetics a bit dated and out of place in Cinnamon along with
  cross app integration for features like copy-paste/drag-and-drop of files

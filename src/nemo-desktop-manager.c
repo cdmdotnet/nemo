@@ -79,7 +79,7 @@ typedef struct {
     gboolean is_primary;
 } DesktopInfo;
 
-static const gchar *
+static __attribute__((unused)) const gchar *
 run_state_str (RunState state)
 {
     switch (state) {
@@ -886,10 +886,8 @@ nemo_desktop_manager_get_margins (NemoDesktopManager *manager,
 {
     FETCH_PRIV (manager);
     GdkRectangle work_rect, geometry;
-    gboolean use_layer_shell = eel_check_is_wayland ();
-
     DEBUG ("NemoDesktopManager get_margins: monitor=%d proxy_owned=%d other_desktop=%d use_layer_shell=%d",
-           monitor, priv->proxy_owned, priv->other_desktop, use_layer_shell);
+           monitor, priv->proxy_owned, priv->other_desktop, eel_check_is_wayland ());
 
     /* When Cinnamon is running, we don't use margins because the window is
      * sized to the work area (X11 mode) or the compositor sizes it to the

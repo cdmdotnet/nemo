@@ -1,7 +1,7 @@
 ![build](https://github.com/cdmdotnet/nemo/actions/workflows/build.yml/badge.svg)
 
 # Nemo-Plus
-Nemo-Plus is a fork of [nemo](https://github.com/linuxmint/nemo) with additional dual-pane/preview-pane features similar to those of [xplorer²](https://www.zabkat.com/) on windows. This was done as nemo, being part of Linux Mint, has a strong reputation for being one of (if not the) best distro for those wishing to move from Windows to Linux. This has similarities to [4pane](https://4pane.co.uk/), which we would have stuck with, however found its layout/aesthetics a bit dated and out of place in Cinnamon along with cross app integration for features like copy-paste/drag-and-drop of files to be inconsistent when compared to nemo.
+Nemo-Plus is a fork of [nemo](https://github.com/linuxmint/nemo) with additional dual-pane/preview-pane features similar to those of [xplorer²](https://www.zabkat.com/) on windows. This was done as nemo, being part of Linux Mint, has a strong reputation for being one of (if not the) best distros for those wishing to move from Windows to Linux. This has similarities to [4pane](https://4pane.co.uk/), which we would have stuck with, however found its layout/aesthetics a bit dated and out of place in Cinnamon along with cross app integration for features like copy-paste/drag-and-drop of files to be inconsistent when compared to nemo.
 
 ## History
 Nemo-Plus started as a fork of nemo at v6.3.3 and we intend to keep it up-to-date with upstream features as best we can along with matching version numbers as best we can.
