@@ -4040,15 +4040,13 @@ files_added_callback (NemoDirectory *directory,
 		      gpointer callback_data)
 {
 	NemoView *view;
-	GtkWindow *window;
 	char *uri;
 
 	view = NEMO_VIEW (callback_data);
 
-	window = nemo_view_get_containing_window (view);
 	uri = nemo_view_get_uri (view);
 	DEBUG_FILES (files, "Files added in window %p: %s",
-		     window, uri ? uri : "(no directory)");
+		     nemo_view_get_containing_window (view), uri ? uri : "(no directory)");
 	g_free (uri);
 
 	schedule_changes (view);
@@ -4065,15 +4063,13 @@ files_changed_callback (NemoDirectory *directory,
 			gpointer callback_data)
 {
 	NemoView *view;
-	GtkWindow *window;
 	char *uri;
 
 	view = NEMO_VIEW (callback_data);
 
-	window = nemo_view_get_containing_window (view);
 	uri = nemo_view_get_uri (view);
 	DEBUG_FILES (files, "Files changed in window %p: %s",
-		     window, uri ? uri : "(no directory)");
+		     nemo_view_get_containing_window (view), uri ? uri : "(no directory)");
 	g_free (uri);
 
 	schedule_changes (view);
@@ -10344,14 +10340,13 @@ schedule_update_status (NemoView *view)
 void
 nemo_view_notify_selection_changed (NemoView *view)
 {
-	GtkWindow *window;
 	GList *selection;
 
 	g_return_if_fail (NEMO_IS_VIEW (view));
 
 	selection = nemo_view_get_selection (view);
-	window = nemo_view_get_containing_window (view);
-	DEBUG_FILES (selection, "Selection changed in window %p", window);
+	DEBUG_FILES (selection, "Selection changed in window %p",
+	             nemo_view_get_containing_window (view));
     nemo_file_list_free (selection);
 
 	view->details->selection_was_removed = FALSE;

@@ -5136,7 +5136,7 @@ nemo_file_get_trash_original_file_parent_as_string (NemoFile *file)
 	return NULL;
 }
 
-static const gchar *
+static __attribute__((unused)) const gchar *
 nemo_date_type_to_string (NemoDateType type)
 {
     switch (type) {

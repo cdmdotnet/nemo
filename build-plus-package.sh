@@ -19,7 +19,7 @@
 set -e
 
 VERSION="6.6.3"
-RELEASE="5"
+RELEASE="6"
 ARCH="amd64"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
