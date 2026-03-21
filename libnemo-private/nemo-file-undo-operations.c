@@ -995,6 +995,9 @@ trash_strings_func (NemoFileUndoInfo *info,
 	NemoFileUndoInfoTrash *self = NEMO_FILE_UNDO_INFO_TRASH (info);
 	gint count = g_hash_table_size (self->priv->trashed);
 
+	*undo_label = g_strdup (_("_Undo Trash"));
+	*redo_label = g_strdup (_("_Redo Trash"));
+
 	if (count != 1) {
 		*undo_description = g_strdup_printf (ngettext ("Restore %d item from trash",
 							       "Restore %d items from trash", count),
@@ -1021,9 +1024,6 @@ trash_strings_func (NemoFileUndoInfo *info,
 		*redo_description = g_strdup_printf (_("Move '%s' to trash"), name);
 
 		g_free (name);
-
-		*undo_label = g_strdup (_("_Undo Trash"));
-		*redo_label = g_strdup (_("_Redo Trash"));
 	}
 }
 
