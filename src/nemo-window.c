@@ -49,6 +49,7 @@
 #include "nemo-list-view.h"
 #include "nemo-statusbar.h"
 #include "nemo-preview-pane.h"
+#include "nemo-tab-state.h"
 
 #include <eel/eel-debug.h>
 #include <eel/eel-gtk-extensions.h>
@@ -288,6 +289,12 @@ nemo_window_new_tab (NemoWindow *window)
 		nemo_window_set_active_slot (window, new_slot);
 		nemo_window_slot_open_location (new_slot, location, 0);
 		g_object_unref (location);
+
+		/* The location-changed signal will fire once loading completes,
+		 * but save now so the new tab count is persisted immediately. */
+		if (!NEMO_IS_DESKTOP_WINDOW (window) && !nemo_tab_state_is_restoring ()) {
+			nemo_tab_state_save (window);
+		}
 	}
 }
 
@@ -2086,6 +2093,56 @@ create_extra_pane (NemoWindow *window)
 	return slot;
 }
 
+/* Common pane2 setup called by both nemo_window_split_view_on and
+ * nemo_window_split_view_on_for_restore.  Creates pane2, applies all
+ * per-pane layout (toolbar embedding, separate sidebar, statusbars), and
+ * returns the new slot so the caller can navigate it.  Does NOT call
+ * nemo_window_slot_open_location — that is the caller's responsibility. */
+static NemoWindowSlot *
+split_view_create_pane2 (NemoWindow *window)
+{
+	NemoWindowSlot *slot;
+	NemoWindowPane *pane2;
+	gboolean vertical;
+	gboolean separate_nav;
+	gboolean separate_sidebar;
+	gboolean separate_statusbar;
+	gboolean per_pane;
+
+	slot  = create_extra_pane (window);
+	pane2 = slot->pane;
+
+	vertical         = g_settings_get_boolean (nemo_preferences,
+	                                            NEMO_PREFERENCES_DUAL_PANE_VERTICAL_SPLIT);
+	separate_nav     = g_settings_get_boolean (nemo_preferences,
+	                                            NEMO_PREFERENCES_DUAL_PANE_SEPARATE_NAV_BAR);
+	separate_sidebar = g_settings_get_boolean (nemo_preferences,
+	                                            NEMO_PREFERENCES_DUAL_PANE_SEPARATE_SIDEBAR);
+	separate_statusbar = g_settings_get_boolean (nemo_preferences,
+	                                              NEMO_PREFERENCES_DUAL_PANE_SEPARATE_STATUSBAR);
+
+	per_pane = vertical && separate_sidebar && window->details->show_sidebar;
+
+	if (vertical && separate_nav) {
+		NemoWindowPane *pane1 = window->details->panes->data;
+		nemo_window_pane_embed_toolbar (pane1);
+		nemo_window_pane_embed_toolbar (pane2);
+	}
+
+	if (per_pane) {
+		nemo_window_set_up_pane1_wrapper (window);
+		nemo_window_set_up_sidebar2 (window);
+	}
+
+	if (per_pane && separate_statusbar) {
+		nemo_window_set_up_per_pane_statusbars (window);
+	}
+
+	nemo_window_refresh_sidebar_colours (window);
+
+	return slot;
+}
+
 static void
 nemo_window_reload (NemoWindow *window)
 {
@@ -3437,12 +3494,9 @@ nemo_window_split_view_on (NemoWindow *window)
 {
 	NemoWindowSlot *slot, *old_active_slot;
 	GFile *location;
-	NemoWindowPane *pane2;
-	gboolean vertical;
-	gboolean separate_nav;
 
 	old_active_slot = nemo_window_get_active_slot (window);
-	slot = create_extra_pane (window);
+	slot = split_view_create_pane2 (window);
 
 	location = window->details->secondary_pane_last_location;
 
@@ -3463,41 +3517,18 @@ nemo_window_split_view_on (NemoWindow *window)
 	g_object_unref (location);
 
 	window_set_search_action_text (window, FALSE);
+}
 
-	/* Set up per-pane features if enabled */
-	pane2 = slot->pane;
-
-	vertical = g_settings_get_boolean (nemo_preferences,
-				       NEMO_PREFERENCES_DUAL_PANE_VERTICAL_SPLIT);
-	separate_nav = g_settings_get_boolean (nemo_preferences,
-					   NEMO_PREFERENCES_DUAL_PANE_SEPARATE_NAV_BAR);
-	gboolean separate_sidebar = g_settings_get_boolean (nemo_preferences,
-							NEMO_PREFERENCES_DUAL_PANE_SEPARATE_SIDEBAR);
-	gboolean separate_statusbar = g_settings_get_boolean (nemo_preferences,
-							  NEMO_PREFERENCES_DUAL_PANE_SEPARATE_STATUSBAR);
-	/* Per spec 3.5.3: toolbar embedding is independent of sidebar layout.
-     * pane1 wrapper (pri_paned) is ONLY created when separate_sidebar is ON. */
-	gboolean per_pane = vertical && separate_sidebar &&
-			window->details->show_sidebar;
-
-	if (vertical && separate_nav) {
-	NemoWindowPane *pane1 = window->details->panes->data;
-	nemo_window_pane_embed_toolbar (pane1);
-	nemo_window_pane_embed_toolbar (pane2);
-	}
-
-	if (per_pane) {
-	nemo_window_set_up_pane1_wrapper (window);
-	nemo_window_set_up_sidebar2 (window);
-	}
-
-	/* Per-pane statusbars require the column VBoxes to be in place first */
-	if (per_pane && separate_statusbar) {
-	nemo_window_set_up_per_pane_statusbars (window);
-	}
-
-	/* Apply sidebar background colours now that all sidebars are in place. */
-	nemo_window_refresh_sidebar_colours (window);
+/* Restore variant: creates pane2 and all its per-pane infrastructure but
+ * does NOT navigate to any default location.  The caller (nemo-tab-state.c)
+ * is responsible for navigating the returned slot to the saved URI so that
+ * no extra async load fires and increments restore_pending_loads unexpectedly. */
+NemoWindowSlot *
+nemo_window_split_view_on_for_restore (NemoWindow *window)
+{
+	NemoWindowSlot *slot = split_view_create_pane2 (window);
+	window_set_search_action_text (window, FALSE);
+	return slot;
 }
 
 void

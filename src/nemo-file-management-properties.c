@@ -41,6 +41,7 @@
 #include <libnemo-private/nemo-module.h>
 
 #include "nemo-plugin-manager.h"
+#include "nemo-tab-state.h"
 #include "nemo-template-config-widget.h"
 #include "nemo-actions.h"
 
@@ -104,6 +105,7 @@
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_SEPARATE_SIDEBAR_WIDGET "dual_pane_separate_sidebar_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_SEPARATE_NAV_BAR_WIDGET "dual_pane_separate_nav_bar_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_SEPARATE_STATUSBAR_WIDGET "dual_pane_separate_statusbar_checkbutton"
+#define NEMO_FILE_MANAGEMENT_PROPERTIES_REMEMBER_OPEN_TABS_WIDGET "remember_open_tabs_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_IGNORE_VIEW_METADATA_WIDGET "ignore_view_metadata_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_BOOKMARKS_IN_TO_MENUS_WIDGET "bookmarks_in_to_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_PLACES_IN_TO_MENUS_WIDGET "places_in_to_checkbutton"
@@ -835,6 +837,22 @@ connect_dual_pane_sensitivity (GtkBuilder *builder)
         builder);
 }
 
+/* When the user turns off "Remember open tabs", delete the saved state file
+ * immediately so stale data is not accidentally restored if the preference
+ * is re-enabled later. */
+static void
+on_remember_tabs_pref_changed (GSettings *settings,
+                                const gchar *key,
+                                gpointer user_data)
+{
+    (void) key;
+    (void) user_data;
+
+    if (!g_settings_get_boolean (settings, NEMO_PREFERENCES_REMEMBER_OPEN_TABS)) {
+        nemo_tab_state_delete ();
+    }
+}
+
 static void
 setup_tooltip_items (GtkBuilder *builder)
 {
@@ -1148,6 +1166,16 @@ nemo_file_management_properties_dialog_setup (GtkBuilder  *builder,
     bind_builder_bool (builder, nemo_preferences,
                        NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_SEPARATE_STATUSBAR_WIDGET,
                        NEMO_PREFERENCES_DUAL_PANE_SEPARATE_STATUSBAR);
+
+    bind_builder_bool (builder, nemo_preferences,
+                       NEMO_FILE_MANAGEMENT_PROPERTIES_REMEMBER_OPEN_TABS_WIDGET,
+                       NEMO_PREFERENCES_REMEMBER_OPEN_TABS);
+
+    /* Delete stale tab-state when the user turns the feature off */
+    g_signal_connect (nemo_preferences,
+                      "changed::" NEMO_PREFERENCES_REMEMBER_OPEN_TABS,
+                      G_CALLBACK (on_remember_tabs_pref_changed),
+                      NULL);
 
     bind_builder_bool (builder, nemo_preferences,
                        NEMO_FILE_MANAGEMENT_PROPERTIES_IGNORE_VIEW_METADATA_WIDGET,

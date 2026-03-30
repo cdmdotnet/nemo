@@ -33,6 +33,7 @@
 #include "nemo-floating-bar.h"
 #include "nemo-location-bar.h"
 #include "nemo-pathbar.h"
+#include "nemo-tab-state.h"
 #include "nemo-window-private.h"
 #include "nemo-window-slot.h"
 #include "nemo-trash-bar.h"
@@ -1568,6 +1569,28 @@ update_for_new_location (NemoWindowSlot *slot)
 	}
 
     nemo_window_sync_menu_bar (window);
+
+    /* Persist the tab layout after each location load completes.
+     *
+     * During restore, nemo_tab_state_restore() sets restore_pending_loads to
+     * the total number of nemo_window_slot_open_location() calls it makes.
+     * update_for_new_location fires asynchronously for each of those loads
+     * (via the view-load pipeline, potentially after restore() has returned).
+     * We decrement the counter here; when it reaches zero all restore loads
+     * have landed and slot->location is fully current, so it is safe to save.
+     *
+     * Outside of restore, restore_pending_loads is 0 and nemo_tab_state_save
+     * runs immediately on every navigation.
+     *
+     * Skip desktop windows — they manage their own layout independently. */
+    if (!NEMO_IS_DESKTOP_WINDOW (window)) {
+        if (nemo_tab_state_is_restoring ()) {
+            /* Still waiting for other restore loads to complete. */
+            nemo_tab_state_restore_load_complete (window);
+        } else {
+            nemo_tab_state_save (window);
+        }
+    }
 }
 
 /* A location load previously announced by load_underway

@@ -90,6 +90,9 @@ typedef enum
 #define NEMO_PREFERENCES_ALWAYS_USE_BROWSER			"always-use-browser"
 #define NEMO_PREFERENCES_NEW_TAB_POSITION			"tabs-open-position"
 
+/* Tab session restore */
+#define NEMO_PREFERENCES_REMEMBER_OPEN_TABS			"remember-open-tabs"
+
 #define NEMO_PREFERENCES_SHOW_LOCATION_ENTRY		"show-location-entry"
 #define NEMO_PREFERENCES_SHOW_PREVIOUS_ICON_TOOLBAR     "show-previous-icon-toolbar"
 #define NEMO_PREFERENCES_SHOW_NEXT_ICON_TOOLBAR     "show-next-icon-toolbar"

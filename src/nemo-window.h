@@ -156,6 +156,10 @@ void     nemo_window_back_or_forward      (NemoWindow *window,
 void     nemo_window_split_view_on        (NemoWindow *window);
 void     nemo_window_split_view_off       (NemoWindow *window);
 gboolean nemo_window_split_view_showing   (NemoWindow *window);
+/* Restore-only variant: creates pane2 infrastructure but does NOT navigate
+ * to any default location.  Returns the new pane2's active slot so the
+ * caller can navigate it directly to the saved URI. */
+NemoWindowSlot *nemo_window_split_view_on_for_restore (NemoWindow *window);
 
 gboolean nemo_window_disable_chrome_mapping (GValue *value,
                                                  GVariant *variant,

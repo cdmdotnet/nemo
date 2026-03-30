@@ -51,6 +51,7 @@
 
 // For: NEMO_IS_DESKTOP_WINDOW
 #include "nemo-desktop-window.h"
+#include "nemo-tab-state.h"
 
 enum {
 	PROP_WINDOW = 1,
@@ -1325,6 +1326,16 @@ nemo_window_pane_close_slot (NemoWindowPane *pane,
 	}
 
 	nemo_window_pane_remove_slot_unsafe (pane, slot);
+
+	/* Persist the reduced tab count immediately after a tab is closed.
+	 * We only save when at least one slot remains in this pane, or the
+	 * split view is still showing — once the final slot of the final pane
+	 * is closed, nemo_window_close() is called next and there is nothing
+	 * worth saving. */
+	if ((pane->slots != NULL || nemo_window_split_view_showing (window)) &&
+	    !NEMO_IS_DESKTOP_WINDOW (window) && !nemo_tab_state_is_restoring ()) {
+		nemo_tab_state_save (window);
+	}
 
 	/* If that was the last slot in the pane, close the pane or even the
 	 * whole window.

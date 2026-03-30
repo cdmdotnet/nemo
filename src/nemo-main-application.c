@@ -44,6 +44,7 @@
 #include "nemo-window-slot.h"
 #include "nemo-statusbar.h"
 #include "nemo-notebook.h"
+#include "nemo-tab-state.h"
 
 #include <libnemo-private/nemo-dbus-manager.h>
 #include <libnemo-private/nemo-directory-private.h>
@@ -831,6 +832,36 @@ post_registration:
 	}
 
 	if (files == NULL && !no_default_window) {
+		/* If the user has "Remember open tabs" enabled and saved state
+		 * exists, restore it directly into a new window rather than
+		 * opening the default home location.  We create the window here
+		 * and jump to `out` so the g_application_open() call below is
+		 * skipped entirely — the window is already populated. */
+		if (nemo_tab_state_has_saved_state ()) {
+			NemoWindow *restore_window =
+				nemo_main_application_create_window (NEMO_APPLICATION (self),
+				                                     gdk_screen_get_default ());
+
+			if (self->priv->geometry != NULL) {
+				eel_gtk_window_set_initial_geometry_from_string (
+					GTK_WINDOW (restore_window),
+					self->priv->geometry,
+					APPLICATION_WINDOW_MIN_WIDTH,
+					APPLICATION_WINDOW_MIN_HEIGHT,
+					FALSE);
+			}
+
+			if (!nemo_tab_state_restore (restore_window)) {
+				/* Restore failed (corrupt / empty file) — fall back
+				 * to home so the window is not left empty. */
+				GFile *home = g_file_new_for_path (g_get_home_dir ());
+				nemo_window_go_to (restore_window, home);
+				g_object_unref (home);
+			}
+
+			goto out;
+		}
+
 		files = g_malloc0 (2 * sizeof (GFile *));
 		len = 1;
 

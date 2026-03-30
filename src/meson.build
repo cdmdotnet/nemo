@@ -61,6 +61,7 @@ nemoCommon_sources = [
   'nemo-template-config-widget.c',
   'nemo-self-check-functions.c',
   'nemo-statusbar.c',
+  'nemo-tab-state.c',
   'nemo-thumbnail-problem-bar.c',
   'nemo-toolbar.c',
   'nemo-trash-bar.c',
