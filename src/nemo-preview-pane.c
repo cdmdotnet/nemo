@@ -149,6 +149,7 @@ typedef enum {
     PREVIEW_PAGE_VIDEO,
     PREVIEW_PAGE_PDF,
     PREVIEW_PAGE_WEB,
+    PREVIEW_PAGE_TEXT,        /* plain text / scripts — GtkTextView            */
 } PreviewPage;
 
 
@@ -199,6 +200,16 @@ struct _NemoPreviewPanePrivate {
     /* ── Page: WEB ─────────────────────────────────────────────────────── */
     GtkWidget  *web_view;
 
+    /* ── Page: TEXT ─────────────────────────────────────────────────────── */
+    GtkWidget  *text_scroll;
+    GtkWidget  *text_view;
+
+    /* ── Preview toolbar (always above the stack) ───────────────────────── */
+    GtkWidget  *preview_toolbar;       /* GtkBox — the toolbar strip           */
+    GtkWidget  *preview_toolbar_wrapper; /* outer vbox: sep + toolbar          */
+    GtkWidget  *toolbar_open_btn;      /* "Open" — always shown when loaded    */
+    GtkWidget  *toolbar_execute_btn;   /* "Execute" — scripts only             */
+
     /* ── GStreamer state (runtime-loaded) ───────────────────────────────── */
     gpointer    gst_pipeline;    /* GstElement* cast to gpointer             */
     guint       gst_bus_watch_id;
@@ -234,6 +245,8 @@ static void preview_load_video       (NemoPreviewPane *, const char *);
 static void preview_load_pdf         (NemoPreviewPane *, const char *);
 static void preview_load_web         (NemoPreviewPane *, const char *);
 static void preview_load_office      (NemoPreviewPane *, const char *);
+static void preview_load_text        (NemoPreviewPane *, const char *, gboolean is_script);
+static void preview_toolbar_update   (NemoPreviewPane *, const char *uri, gboolean show_execute);
 static void lo_disconnect_web_cleanup (NemoPreviewPane *);
 static void preview_show_missing_dep (NemoPreviewPane *,
                                       const char *title,
@@ -263,6 +276,52 @@ static gboolean mime_is_office (const char *m) {
     return FALSE;
 }
 
+/* Script / interpreted-language MIME types where an Execute button is
+ * meaningful.  We show the button for all of these regardless of whether the
+ * file's execute bit is set — the user must make that call explicitly.       */
+static gboolean
+mime_is_script (const char *m)
+{
+    if (!m) return FALSE;
+    /* Shell variants */
+    if (g_strcmp0 (m, "text/x-shellscript") == 0)        return TRUE;
+    if (g_strcmp0 (m, "application/x-shellscript") == 0) return TRUE;
+    if (g_strcmp0 (m, "application/x-sh") == 0)          return TRUE;
+    if (g_strcmp0 (m, "text/x-sh") == 0)                 return TRUE;
+    /* Scripting languages */
+    if (g_strcmp0 (m, "text/x-python") == 0)             return TRUE;
+    if (g_strcmp0 (m, "text/x-python3") == 0)            return TRUE;
+    if (g_strcmp0 (m, "application/x-python") == 0)      return TRUE;
+    if (g_strcmp0 (m, "text/x-perl") == 0)               return TRUE;
+    if (g_strcmp0 (m, "application/x-perl") == 0)        return TRUE;
+    if (g_strcmp0 (m, "text/x-ruby") == 0)               return TRUE;
+    if (g_strcmp0 (m, "application/x-ruby") == 0)        return TRUE;
+    if (g_strcmp0 (m, "text/x-tcl") == 0)                return TRUE;
+    if (g_strcmp0 (m, "text/tcl") == 0)                  return TRUE;
+    if (g_strcmp0 (m, "text/x-lua") == 0)                return TRUE;
+    if (g_strcmp0 (m, "text/x-awk") == 0)                return TRUE;
+    if (g_strcmp0 (m, "application/x-awk") == 0)         return TRUE;
+    return FALSE;
+}
+
+/* Any text/* type that is not HTML (handled separately).
+ * Also catches script types that use application/* MIME types (e.g.
+ * application/x-shellscript, application/x-ruby, application/x-perl)
+ * since those are equally displayable as plain text.                        */
+static gboolean
+mime_is_text (const char *m)
+{
+    if (!m) return FALSE;
+    /* HTML is handled by the web renderer */
+    if (g_strcmp0 (m, "text/html") == 0) return FALSE;
+    if (g_strcmp0 (m, "application/xhtml+xml") == 0) return FALSE;
+    /* All text/* types */
+    if (g_str_has_prefix (m, "text/")) return TRUE;
+    /* application/* script/source types — displayable as plain text */
+    if (mime_is_script (m)) return TRUE;
+    return FALSE;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  Stack / page switching
@@ -281,6 +340,7 @@ preview_show_page (NemoPreviewPane *self, PreviewPage page)
         case PREVIEW_PAGE_VIDEO:       name = "video";   break;
         case PREVIEW_PAGE_PDF:         name = "pdf";     break;
         case PREVIEW_PAGE_WEB:         name = "web";     break;
+        case PREVIEW_PAGE_TEXT:        name = "text";    break;
         default:                       name = "empty";   break;
     }
 
@@ -1578,6 +1638,367 @@ preview_load_office (NemoPreviewPane *self, const char *uri)
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ *  Preview toolbar — Open and (optionally) Execute buttons
+ *
+ *  The toolbar is a thin GtkBox packed at the top of the NemoPreviewPane,
+ *  above the GtkStack.  It is shown whenever a file is loaded, hidden when
+ *  the pane is empty.  Buttons open/execute the *original* URI — never a
+ *  temporary copy.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Find the user's preferred terminal emulator for running scripts.
+ * Returns a newly-allocated path string if found, NULL if no terminal is
+ * available.  Caller must g_free() the result.                              */
+static gchar *
+find_terminal (void)
+{
+    /* Honour TERMINAL env var first (set in some distros / user configs) */
+    const gchar *env = g_getenv ("TERMINAL");
+    if (env && *env) {
+        gchar *found = g_find_program_in_path (env);
+        if (found) return found;
+    }
+
+    /* Ordered preference: Debian/Ubuntu alternatives pointer first, then
+     * common terminal emulators found on Linux Mint and derivatives.        */
+    const gchar *candidates[] = {
+        "x-terminal-emulator",
+        "xfce4-terminal",
+        "gnome-terminal",
+        "mate-terminal",
+        "tilix",
+        "konsole",
+        "xterm",
+        NULL
+    };
+    for (int i = 0; candidates[i]; i++) {
+        gchar *found = g_find_program_in_path (candidates[i]);
+        if (found) return found;
+    }
+    return NULL; /* no terminal found */
+}
+
+static void
+on_toolbar_open_clicked (GtkButton *btn, gpointer user_data)
+{
+    NemoPreviewPane *self = NEMO_PREVIEW_PANE (user_data);
+    const gchar *uri = self->priv->current_uri;
+    (void) btn;
+
+    if (!uri || !*uri) return;
+
+    DEBUG ("toolbar: opening URI with default handler: %s", uri);
+    GError *err = NULL;
+    if (!g_app_info_launch_default_for_uri (uri, NULL, &err)) {
+        g_warning ("NemoPreviewPane: could not open '%s': %s",
+                   uri, err ? err->message : "unknown");
+        if (err) g_error_free (err);
+    }
+}
+
+/* Show a modal dialog when no terminal emulator can be found.
+ * The install command is displayed in a selectable monospace frame with a
+ * Copy to Clipboard button, matching the style of the missing-dep notice.  */
+static void
+show_no_terminal_dialog (GtkWidget *parent_widget)
+{
+    static const char install_cmd[] = "sudo apt install xterm";
+
+    GtkWidget *toplevel  = gtk_widget_get_toplevel (parent_widget);
+    GtkWindow *parent_win = GTK_IS_WINDOW (toplevel) ? GTK_WINDOW (toplevel) : NULL;
+
+    GtkWidget *dialog = gtk_dialog_new_with_buttons (
+        _("No terminal emulator found"),
+        parent_win,
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+        _("Copy to Clipboard"), GTK_RESPONSE_APPLY,
+        _("Close"),             GTK_RESPONSE_CLOSE,
+        NULL);
+    gtk_window_set_resizable (GTK_WINDOW (dialog), FALSE);
+
+    GtkWidget *content = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
+    gtk_container_set_border_width (GTK_CONTAINER (content), 16);
+    gtk_box_set_spacing (GTK_BOX (content), 10);
+
+    /* Icon + explanatory text */
+    GtkWidget *hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
+    GtkWidget *icon = gtk_image_new_from_icon_name (
+        "utilities-terminal-symbolic", GTK_ICON_SIZE_DIALOG);
+    gtk_widget_set_opacity (icon, 0.7);
+    gtk_box_pack_start (GTK_BOX (hbox), icon, FALSE, FALSE, 0);
+
+    GtkWidget *lbl = gtk_label_new (NULL);
+    gtk_label_set_markup (GTK_LABEL (lbl),
+        _("<b>No terminal emulator found</b>\n"
+          "To execute scripts, install a terminal emulator:"));
+    gtk_label_set_xalign (GTK_LABEL (lbl), 0.0);
+    gtk_label_set_line_wrap (GTK_LABEL (lbl), TRUE);
+    gtk_box_pack_start (GTK_BOX (hbox), lbl, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (content), hbox, FALSE, FALSE, 0);
+
+    /* Monospace selectable command frame */
+    GtkWidget *frame = gtk_frame_new (NULL);
+    gtk_style_context_add_class (gtk_widget_get_style_context (frame), "view");
+    GtkWidget *cmd_lbl = gtk_label_new (install_cmd);
+    gtk_label_set_selectable (GTK_LABEL (cmd_lbl), TRUE);
+    gtk_widget_set_margin_start  (cmd_lbl, 10);
+    gtk_widget_set_margin_end    (cmd_lbl, 10);
+    gtk_widget_set_margin_top    (cmd_lbl, 8);
+    gtk_widget_set_margin_bottom (cmd_lbl, 8);
+    {
+        PangoAttrList *attrs = pango_attr_list_new ();
+        pango_attr_list_insert (attrs, pango_attr_family_new ("Monospace"));
+        pango_attr_list_insert (attrs, pango_attr_scale_new (PANGO_SCALE_SMALL));
+        gtk_label_set_attributes (GTK_LABEL (cmd_lbl), attrs);
+        pango_attr_list_unref (attrs);
+    }
+    gtk_container_add (GTK_CONTAINER (frame), cmd_lbl);
+    gtk_box_pack_start (GTK_BOX (content), frame, FALSE, FALSE, 0);
+
+    gtk_widget_show_all (content);
+
+    gint response = gtk_dialog_run (GTK_DIALOG (dialog));
+    if (response == GTK_RESPONSE_APPLY) {
+        GtkClipboard *cb = gtk_clipboard_get (GDK_SELECTION_CLIPBOARD);
+        gtk_clipboard_set_text (cb, install_cmd, -1);
+    }
+    gtk_widget_destroy (dialog);
+}
+
+static void
+on_toolbar_execute_clicked (GtkButton *btn, gpointer user_data)
+{
+    NemoPreviewPane *self = NEMO_PREVIEW_PANE (user_data);
+    const gchar *uri = self->priv->current_uri;
+    (void) btn;
+
+    if (!uri || !*uri) return;
+
+    /* Only local files can be executed */
+    GFile *file = g_file_new_for_uri (uri);
+    gchar *path = g_file_get_path (file);
+    g_object_unref (file);
+
+    if (!path) {
+        g_warning ("NemoPreviewPane: execute: non-local URI cannot be executed: %s", uri);
+        return;
+    }
+
+    DEBUG ("toolbar: executing script: %s", path);
+
+    gchar *terminal = find_terminal ();
+
+    if (!terminal) {
+        DEBUG ("execute: no terminal found — showing install dialog");
+        show_no_terminal_dialog (GTK_WIDGET (self));
+        g_free (path);
+        return;
+    }
+
+    /* Build the shell command: run the script, then pause so the terminal
+     * stays open until the user presses Enter — matches typical UX. */
+    gchar *quoted = g_shell_quote (path);
+    gchar *cmd    = g_strdup_printf (
+        "%s; echo; printf '\\n--- Script finished. Press Enter to close ---'; read",
+        quoted);
+
+    /* All common terminal emulators (xterm, xfce4-terminal, gnome-terminal
+     * via x-terminal-emulator wrapper, tilix, etc.) accept -e to run a
+     * command string.  We pass "bash -c <cmd>" as separate argv elements so
+     * the terminal does not try to interpret shell metacharacters itself. */
+    const gchar *argv[] = { terminal, "-e", "bash", "-c", cmd, NULL };
+
+    GError *err = NULL;
+    if (!g_spawn_async (NULL, (gchar **)argv, NULL,
+                        G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &err)) {
+        g_warning ("NemoPreviewPane: execute spawn failed for '%s': %s",
+                   path, err ? err->message : "?");
+        if (err) g_error_free (err);
+    }
+
+    g_free (cmd);
+    g_free (quoted);
+    g_free (terminal);
+    g_free (path);
+}
+
+/* Build the toolbar widget (called once during init).
+ * Returns the GtkBox; also sets p->toolbar_open_btn and
+ * p->toolbar_execute_btn.  The toolbar is initially hidden. */
+static GtkWidget *
+build_preview_toolbar (NemoPreviewPane *self)
+{
+    NemoPreviewPanePrivate *p = self->priv;
+
+    GtkWidget *bar = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
+    gtk_widget_set_margin_start  (bar, 4);
+    gtk_widget_set_margin_end    (bar, 4);
+    gtk_widget_set_margin_top    (bar, 2);
+    gtk_widget_set_margin_bottom (bar, 2);
+
+    /* Separator at top to visually divide toolbar from preview */
+    GtkWidget *sep = gtk_separator_new (GTK_ORIENTATION_HORIZONTAL);
+    gtk_widget_show (sep);
+
+    /* Spacer pushes buttons to the right */
+    GtkWidget *spacer = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_set_hexpand (spacer, TRUE);
+    gtk_box_pack_start (GTK_BOX (bar), spacer, TRUE, TRUE, 0);
+    gtk_widget_show (spacer);
+
+    /* Execute button — only shown for scripts */
+    GtkWidget *exec_btn = gtk_button_new_from_icon_name (
+        "media-playback-start-symbolic", GTK_ICON_SIZE_SMALL_TOOLBAR);
+    gtk_widget_set_tooltip_text (exec_btn, _("Execute script in terminal"));
+    gtk_style_context_add_class (gtk_widget_get_style_context (exec_btn), "flat");
+    g_signal_connect (exec_btn, "clicked",
+                      G_CALLBACK (on_toolbar_execute_clicked), self);
+    gtk_box_pack_end (GTK_BOX (bar), exec_btn, FALSE, FALSE, 0);
+    /* Hidden by default; shown selectively in preview_toolbar_update */
+    p->toolbar_execute_btn = exec_btn;
+
+    /* Open button — always shown when a file is loaded */
+    GtkWidget *open_btn = gtk_button_new_from_icon_name (
+        "document-open-symbolic", GTK_ICON_SIZE_SMALL_TOOLBAR);
+    gtk_widget_set_tooltip_text (open_btn, _("Open with default application"));
+    gtk_style_context_add_class (gtk_widget_get_style_context (open_btn), "flat");
+    g_signal_connect (open_btn, "clicked",
+                      G_CALLBACK (on_toolbar_open_clicked), self);
+    gtk_box_pack_end (GTK_BOX (bar), open_btn, FALSE, FALSE, 0);
+    gtk_widget_show (open_btn);
+    p->toolbar_open_btn = open_btn;
+
+    p->preview_toolbar = bar;
+
+    /* Pack separator then bar into a wrapper vbox so callers get one widget */
+    GtkWidget *wrapper = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_pack_start (GTK_BOX (wrapper), sep,  FALSE, FALSE, 0);
+    gtk_box_pack_start (GTK_BOX (wrapper), bar,  FALSE, FALSE, 0);
+    p->preview_toolbar_wrapper = wrapper;
+    return wrapper;
+}
+
+/* Show or hide the toolbar and the execute button.
+ * uri must be the *original* file URI (not a temp copy). */
+static void
+preview_toolbar_update (NemoPreviewPane *self, const char *uri, gboolean show_execute)
+{
+    NemoPreviewPanePrivate *p = self->priv;
+
+    if (!p->preview_toolbar || !p->preview_toolbar_wrapper) return;
+
+    if (uri && *uri) {
+        gtk_widget_show (p->preview_toolbar);
+        gtk_widget_show (p->preview_toolbar_wrapper);
+    } else {
+        gtk_widget_hide (p->preview_toolbar_wrapper);
+        return;
+    }
+
+    if (p->toolbar_execute_btn) {
+        if (show_execute)
+            gtk_widget_show (p->toolbar_execute_btn);
+        else
+            gtk_widget_hide (p->toolbar_execute_btn);
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  Text renderer — GtkTextView, always available (GTK)
+ *
+ *  Files are read via GIO so network paths (smb://, sftp://, etc.) work
+ *  transparently.  The view is strictly read-only — no execution path.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Maximum bytes to read for preview — 512 KiB is generous for a text preview
+ * and avoids hanging on accidentally-huge files. */
+#define TEXT_PREVIEW_MAX_BYTES (512 * 1024)
+
+static void
+preview_load_text (NemoPreviewPane *self, const char *uri, gboolean is_script)
+{
+    NemoPreviewPanePrivate *p = self->priv;
+
+    DEBUG ("loading text: uri=%s is_script=%d", uri, is_script);
+
+    GFile  *file = g_file_new_for_uri (uri);
+    GError *err  = NULL;
+
+    GFileInputStream *fstream = g_file_read (file, NULL, &err);
+    g_object_unref (file);
+
+    if (!fstream) {
+        g_warning ("NemoPreviewPane: cannot open text file %s: %s",
+                   uri, err ? err->message : "?");
+        if (err) g_error_free (err);
+        preview_show_page (self, PREVIEW_PAGE_EMPTY);
+        return;
+    }
+
+    /* Read up to TEXT_PREVIEW_MAX_BYTES */
+    gchar   *buf    = g_malloc (TEXT_PREVIEW_MAX_BYTES + 1);
+    gssize   nread  = g_input_stream_read (G_INPUT_STREAM (fstream),
+                                           buf, TEXT_PREVIEW_MAX_BYTES,
+                                           NULL, &err);
+    g_object_unref (fstream);
+
+    if (nread < 0) {
+        g_warning ("NemoPreviewPane: read error for %s: %s",
+                   uri, err ? err->message : "?");
+        if (err) g_error_free (err);
+        g_free (buf);
+        preview_show_page (self, PREVIEW_PAGE_EMPTY);
+        return;
+    }
+    buf[nread] = '\0';
+
+    /* Validate as UTF-8; replace invalid sequences so GtkTextView never chokes */
+    gchar *utf8 = NULL;
+    if (g_utf8_validate (buf, nread, NULL)) {
+        utf8 = buf;
+        buf  = NULL;
+    } else {
+        utf8 = g_utf8_make_valid (buf, nread);
+        g_free (buf);
+        buf = NULL;
+    }
+
+    /* Append a truncation notice if we hit the limit */
+    gchar *display_text;
+    if (nread >= TEXT_PREVIEW_MAX_BYTES) {
+        gchar *notice = g_strdup_printf (
+            "\n\n[Preview truncated at %d KiB — open the file to see the rest]",
+            TEXT_PREVIEW_MAX_BYTES / 1024);
+        display_text = g_strconcat (utf8, notice, NULL);
+        g_free (notice);
+        g_free (utf8);
+    } else {
+        display_text = utf8;
+    }
+
+    GtkTextBuffer *buf_gtk = gtk_text_view_get_buffer (GTK_TEXT_VIEW (p->text_view));
+    gtk_text_buffer_set_text (buf_gtk, display_text, -1);
+    g_free (display_text);
+
+    /* Scroll back to the top */
+    GtkTextIter start;
+    gtk_text_buffer_get_start_iter (buf_gtk, &start);
+    gtk_text_view_scroll_to_iter (GTK_TEXT_VIEW (p->text_view), &start,
+                                  0.0, FALSE, 0.0, 0.0);
+
+    /* Use monospace for scripts/code, proportional for prose */
+    PangoFontDescription *font = pango_font_description_from_string (
+        is_script ? "Monospace 9" : "Sans 9");
+    gtk_widget_override_font (p->text_view, font);
+    pango_font_description_free (font);
+
+    DEBUG ("text loaded: %zd bytes, is_script=%d", (ssize_t)nread, is_script);
+    preview_show_page (self, PREVIEW_PAGE_TEXT);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
  *  Public API
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1590,6 +2011,7 @@ nemo_preview_pane_clear (NemoPreviewPane *pane)
     if (pane->priv->missing_copy_btn)
         gtk_button_set_label (GTK_BUTTON (pane->priv->missing_copy_btn),
                               _("Copy to Clipboard"));
+    preview_toolbar_update (pane, NULL, FALSE);
     preview_show_page (pane, PREVIEW_PAGE_EMPTY);
 }
 
@@ -1604,18 +2026,40 @@ nemo_preview_pane_load_uri (NemoPreviewPane *pane,
 
     preview_clear_media (pane);
 
-    if (!uri || !mime_type) { preview_show_page (pane, PREVIEW_PAGE_EMPTY); return; }
+    if (!uri || !mime_type) {
+        preview_toolbar_update (pane, NULL, FALSE);
+        preview_show_page (pane, PREVIEW_PAGE_EMPTY);
+        return;
+    }
 
     pane->priv->current_uri = g_strdup (uri);
 
-    if      (mime_is_image  (mime_type)) preview_load_image  (pane, uri);
-    else if (mime_is_audio  (mime_type)) preview_load_audio  (pane, uri);
-    else if (mime_is_video  (mime_type)) preview_load_video  (pane, uri);
-    else if (mime_is_pdf    (mime_type)) preview_load_pdf    (pane, uri);
-    else if (mime_is_html   (mime_type)) preview_load_web    (pane, uri);
-    else if (mime_is_office (mime_type)) preview_load_office (pane, uri);
-    else {
+    /* Determine content type and dispatch, updating the toolbar accordingly */
+    if (mime_is_image (mime_type)) {
+        preview_toolbar_update (pane, uri, FALSE);
+        preview_load_image (pane, uri);
+    } else if (mime_is_audio (mime_type)) {
+        preview_toolbar_update (pane, uri, FALSE);
+        preview_load_audio (pane, uri);
+    } else if (mime_is_video (mime_type)) {
+        preview_toolbar_update (pane, uri, FALSE);
+        preview_load_video (pane, uri);
+    } else if (mime_is_pdf (mime_type)) {
+        preview_toolbar_update (pane, uri, FALSE);
+        preview_load_pdf (pane, uri);
+    } else if (mime_is_html (mime_type)) {
+        preview_toolbar_update (pane, uri, FALSE);
+        preview_load_web (pane, uri);
+    } else if (mime_is_office (mime_type)) {
+        preview_toolbar_update (pane, uri, FALSE);
+        preview_load_office (pane, uri);
+    } else if (mime_is_text (mime_type)) {
+        gboolean is_script = mime_is_script (mime_type);
+        preview_toolbar_update (pane, uri, is_script);
+        preview_load_text (pane, uri, is_script);
+    } else {
         DEBUG ("unsupported MIME type: %s", mime_type);
+        preview_toolbar_update (pane, NULL, FALSE);
         preview_show_page (pane, PREVIEW_PAGE_EMPTY);
     }
 }
@@ -1633,6 +2077,13 @@ nemo_preview_pane_init (NemoPreviewPane *self)
 
     gtk_orientable_set_orientation (GTK_ORIENTABLE (self), GTK_ORIENTATION_VERTICAL);
     p->gst_duration = -1.0;
+
+    /* ── Preview toolbar (above everything else) ── */
+    {
+        GtkWidget *toolbar_wrapper = build_preview_toolbar (self);
+        gtk_box_pack_start (GTK_BOX (self), toolbar_wrapper, FALSE, FALSE, 0);
+        /* Hidden until a file is loaded */
+    }
 
     /* ── Stack ── */
     p->stack = gtk_stack_new ();
@@ -1732,6 +2183,28 @@ nemo_preview_pane_init (NemoPreviewPane *self)
         gtk_widget_show (ph);
         gtk_stack_add_named (GTK_STACK (p->stack), ph, "web");
         p->web_view = NULL; /* created on first use */
+    }
+
+    /* ── Page: TEXT ── */
+    {
+        p->text_scroll = gtk_scrolled_window_new (NULL, NULL);
+        gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (p->text_scroll),
+                                        GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+
+        p->text_view = gtk_text_view_new ();
+        gtk_text_view_set_editable    (GTK_TEXT_VIEW (p->text_view), FALSE);
+        gtk_text_view_set_cursor_visible (GTK_TEXT_VIEW (p->text_view), FALSE);
+        gtk_text_view_set_wrap_mode   (GTK_TEXT_VIEW (p->text_view), GTK_WRAP_WORD_CHAR);
+        gtk_text_view_set_left_margin (GTK_TEXT_VIEW (p->text_view), 6);
+        gtk_text_view_set_right_margin (GTK_TEXT_VIEW (p->text_view), 6);
+        gtk_text_view_set_top_margin  (GTK_TEXT_VIEW (p->text_view), 6);
+        gtk_text_view_set_bottom_margin (GTK_TEXT_VIEW (p->text_view), 6);
+        gtk_widget_set_hexpand (p->text_view, TRUE);
+        gtk_widget_set_vexpand (p->text_view, TRUE);
+
+        gtk_container_add (GTK_CONTAINER (p->text_scroll), p->text_view);
+        gtk_widget_show_all (p->text_scroll);
+        gtk_stack_add_named (GTK_STACK (p->stack), p->text_scroll, "text");
     }
 
     gtk_stack_set_visible_child_name (GTK_STACK (p->stack), "empty");
