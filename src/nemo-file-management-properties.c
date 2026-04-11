@@ -100,6 +100,7 @@
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DETECT_CONTENT_MEDIA_WIDGET "media_detect_content_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_SHOW_ADVANCED_PERMISSIONS_WIDGET "show_advanced_permissions_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_START_WITH_DUAL_PANE_WIDGET "start_with_dual_pane_checkbutton"
+#define NEMO_FILE_MANAGEMENT_PROPERTIES_RESTORE_TABS_ON_STARTUP_WIDGET "restore_tabs_on_startup_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_VERTICAL_SPLIT_WIDGET "dual_pane_vertical_split_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_SEPARATE_SIDEBAR_WIDGET "dual_pane_separate_sidebar_checkbutton"
 #define NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_SEPARATE_NAV_BAR_WIDGET "dual_pane_separate_nav_bar_checkbutton"
@@ -1132,6 +1133,10 @@ nemo_file_management_properties_dialog_setup (GtkBuilder  *builder,
     bind_builder_bool (builder, nemo_preferences,
                        NEMO_FILE_MANAGEMENT_PROPERTIES_START_WITH_DUAL_PANE_WIDGET,
                        NEMO_PREFERENCES_START_WITH_DUAL_PANE);
+
+    bind_builder_bool (builder, nemo_preferences,
+                       NEMO_FILE_MANAGEMENT_PROPERTIES_RESTORE_TABS_ON_STARTUP_WIDGET,
+                       NEMO_PREFERENCES_RESTORE_TABS_ON_STARTUP);
 
     bind_builder_bool (builder, nemo_preferences,
                        NEMO_FILE_MANAGEMENT_PROPERTIES_DUAL_PANE_VERTICAL_SPLIT_WIDGET,

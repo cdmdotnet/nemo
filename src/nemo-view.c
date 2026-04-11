@@ -168,7 +168,6 @@ enum {
 	SELECTION_CHANGED,
 	TRASH,
 	DELETE,
-    SHOW_DROP_BAR,
 	LAST_SIGNAL
 };
 
@@ -1272,24 +1271,6 @@ action_open_callback (GtkAction *action,
 				      TRUE);
 	nemo_file_list_free (selection);
 }
-
-static void
-action_open_close_parent_callback (GtkAction *action,
-				   gpointer callback_data)
-{
-	GList *selection;
-	NemoView *view;
-
-	view = NEMO_VIEW (callback_data);
-
-	selection = nemo_view_get_selection (view);
-	nemo_view_activate_files (view,
-				      selection,
-				      NEMO_WINDOW_OPEN_FLAG_CLOSE_BEHIND,
-				      TRUE);
-	nemo_file_list_free (selection);
-}
-
 
 static void
 action_open_alternate_callback (GtkAction *action,
@@ -8400,10 +8381,6 @@ static const GtkActionEntry directory_view_entries[] = {
   /* label, accelerator */       N_("_Detect Media"), NULL,
   /* tooltip */                  N_("Detect media in the selected drive"),
 				 G_CALLBACK (action_self_detect_media_callback) },
-  /* name, stock id */         { "OpenCloseParent", NULL,
-  /* label, accelerator */       N_("Open File and Close window"), "<alt><shift>Down",
-  /* tooltip */                  NULL,
-				 G_CALLBACK (action_open_close_parent_callback) },
   /* Location-specific actions */
   /* name, stock id */         { NEMO_ACTION_LOCATION_OPEN_ALTERNATE, NULL,
   /* label, accelerator */       N_("Open in Navigation Window"), "",
@@ -11191,14 +11168,6 @@ nemo_view_class_init (NemoViewClass *klass)
 			      g_signal_accumulator_true_handled, NULL,
 			      g_cclosure_marshal_generic,
 			      G_TYPE_BOOLEAN, 0);
-    signals[SHOW_DROP_BAR] =
-        g_signal_new ("show-drop-bar",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0,
-                  NULL, NULL,
-                  g_cclosure_marshal_VOID__VOID,
-                  G_TYPE_NONE, 0);
 
 	klass->get_selected_icon_locations = real_get_selected_icon_locations;
 	klass->is_read_only = real_is_read_only;
